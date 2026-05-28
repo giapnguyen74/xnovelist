@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #fbfbf9;
+  --foreground: #20201e;
+  --border: #e8e6df;
+  --sidebar-bg: #f5f4ef;
+  --editor-bg: #fcfbf9;
+  --accent: #5850ec;
+  --accent-light: #ececfc;
+  --font-serif: 'Merriweather', Georgia, serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.dark-theme {
+  --background: #191918;
+  --foreground: #e4e4e1;
+  --border: #2d2d2a;
+  --sidebar-bg: #141413;
+  --editor-bg: #191918;
+  --accent: #6875f5;
+  --accent-light: #202444;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  transition: background-color 0.2s ease, color 0.2s ease;
+  overflow: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Tiptap styles */
+.ProseMirror {
+  outline: none;
+  font-family: var(--font-serif);
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.7;
+}
+
+.ProseMirror p {
+  margin-bottom: 1.25em;
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1.25rem;
+  font-style: italic;
+  color: var(--foreground);
+  opacity: 0.85;
+  margin: 1.5em 0;
+}
+
+.ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1.25em;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 1.25em;
+}
+
+.ProseMirror h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+.ProseMirror hr {
+  border: none;
+  text-align: center;
+  margin: 2em 0;
+}
+
+.ProseMirror hr::after {
+  content: '***';
+  font-size: 1.25rem;
+  letter-spacing: 0.5em;
+  color: var(--foreground);
+  opacity: 0.5;
+}
+
+/* Highlight decorations */
+.character-highlight {
+  border-bottom: 2px dashed #9f7aea;
+  cursor: pointer;
+}
+
+.location-highlight {
+  border-bottom: 2px dotted #48bb78;
+  cursor: pointer;
+}
