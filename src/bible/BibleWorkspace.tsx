@@ -14,6 +14,14 @@ interface BibleWorkspaceProps {
   onUpdateLocations: (locs: Location[]) => void;
   onUpdateStyle: (style: Style) => void;
   onUpdateContinuity: (chapterId: string, content: string) => void;
+  
+  // Lifted selection states for story bible quick-nav
+  bibleTab?: 'characters' | 'locations' | 'style' | 'continuity';
+  onChangeBibleTab?: (tab: 'characters' | 'locations' | 'style' | 'continuity') => void;
+  selectedCharId?: string | null;
+  onSelectChar?: (id: string | null) => void;
+  selectedLocId?: string | null;
+  onSelectLoc?: (id: string | null) => void;
 }
 
 export default function BibleWorkspace({
@@ -27,13 +35,28 @@ export default function BibleWorkspace({
   onUpdateLocations,
   onUpdateStyle,
   onUpdateContinuity,
+  bibleTab: propBibleTab,
+  onChangeBibleTab,
+  selectedCharId: propSelectedCharId,
+  onSelectChar,
+  selectedLocId: propSelectedLocId,
+  onSelectLoc,
 }: BibleWorkspaceProps) {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'characters' | 'locations' | 'style' | 'continuity'>('characters');
+  const [localActiveTab, setLocalActiveTab] = useState<'characters' | 'locations' | 'style' | 'continuity'>('characters');
 
   // Active item selection
-  const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
-  const [selectedLocId, setSelectedLocId] = useState<string | null>(null);
+  const [localSelectedCharId, setLocalSelectedCharId] = useState<string | null>(null);
+  const [localSelectedLocId, setLocalSelectedLocId] = useState<string | null>(null);
+
+  const activeTab = propBibleTab !== undefined ? propBibleTab : localActiveTab;
+  const setActiveTab = onChangeBibleTab !== undefined ? onChangeBibleTab : setLocalActiveTab;
+
+  const selectedCharId = propSelectedCharId !== undefined ? propSelectedCharId : localSelectedCharId;
+  const setSelectedCharId = onSelectChar !== undefined ? onSelectChar : setLocalSelectedCharId;
+
+  const selectedLocId = propSelectedLocId !== undefined ? propSelectedLocId : localSelectedLocId;
+  const setSelectedLocId = onSelectLoc !== undefined ? onSelectLoc : setLocalSelectedLocId;
 
   // Characters logic
   const handleAddChar = () => {

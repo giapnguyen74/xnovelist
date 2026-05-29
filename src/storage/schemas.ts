@@ -1,10 +1,16 @@
 import { z } from 'zod';
 
 export const TypographySettingsSchema = z.object({
-  fontFamily: z.enum(['serif', 'sans']),
-  fontSize: z.enum(['small', 'normal', 'large']),
-  lineHeight: z.enum(['comfortable', 'loose']),
-  pageWidth: z.enum(['narrow', 'normal', 'wide']),
+  fontFamily: z.string().default('serif'),
+  fontSize: z.string().default('normal'),
+  lineHeight: z.string().default('comfortable'),
+  pageWidth: z.string().default('normal'),
+  // Advanced Novel Typography parameters
+  textIndent: z.string().default('normal'),
+  chicagoStyle: z.boolean().default(false),
+  paragraphSpacing: z.string().default('normal'),
+  textAlignment: z.enum(['left', 'center', 'right', 'justify']).default('left'),
+  sceneDivider: z.enum(['boxes', 'stars', 'lines', 'asterisk']).default('asterisk'),
 });
 
 export type TypographySettings = z.infer<typeof TypographySettingsSchema>;

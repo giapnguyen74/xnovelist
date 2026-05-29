@@ -3,6 +3,8 @@ import { Download, Upload, FileText, CheckCircle2 } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { ProjectStorage } from '../storage/ProjectStorage';
 import { Document, Packer, Paragraph, HeadingLevel } from 'docx';
+import { takeSnapshot } from '../storage/snapshots';
+import ConfirmDialog from './ConfirmDialog';
 
 interface ExportImportDialogProps {
   isOpen: boolean;
@@ -10,6 +12,23 @@ interface ExportImportDialogProps {
   storage: ProjectStorage;
   chapterOrder: string[];
   chapters: { id: string; title: string }[];
+}
+
+/** Validate the parsed JSON shape before we trust it. */
+function isValidBackup(data: unknown): data is Record<string, string> {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return false;
+  const rec = data as Record<string, unknown>;
+  const keys = Object.keys(rec);
+  if (keys.length === 0) return false;
+  // Every value must be a string (the path-keyed storage format)
+  for (const k of keys) {
+    if (typeof rec[k] !== 'string') return false;
+  }
+  // Must contain at least one recognisable project artifact
+  const looksLikeXnovelist = keys.some(
+    (k) => k === 'projects.json' || /^projects\//.test(k) || /^Artifacts\//.test(k) || k === 'Project.json'
+  );
+  return looksLikeXnovelist;
 }
 
 export default function ExportImportDialog({
@@ -22,6 +41,8 @@ export default function ExportImportDialog({
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<string | null>(null);
+  // Backup data parsed from the file, held until the user confirms replace.
+  const [pendingImport, setPendingImport] = useState<Record<string, string> | null>(null);
 
   if (!isOpen) return null;
 
@@ -54,37 +75,71 @@ export default function ExportImportDialog({
     }
   };
 
-  // JSON Import
+  // JSON Import — Step 1: read & validate the file, then stage for confirmation.
   const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset the input so picking the same file again triggers a fresh import.
+    e.target.value = '';
 
     const reader = new FileReader();
-    reader.onload = async (event) => {
+    reader.onload = (event) => {
       try {
-        setStatus('Importing...');
         const data = JSON.parse(event.target?.result as string);
-
-        if (typeof data !== 'object' || data === null) {
-          throw new Error('Invalid backup file');
+        if (!isValidBackup(data)) {
+          setStatus('Import failed — file does not look like an xnovelist backup.');
+          return;
         }
-
-        // Write keys
-        for (const [path, content] of Object.entries(data)) {
-          if (typeof content === 'string') {
-            await storage.writeFile(path, content);
-          }
-        }
-
-        setStatus('Import successful! Reloading...');
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+        setPendingImport(data);
+        setStatus(null);
       } catch {
-        setStatus('Import failed! Invalid file.');
+        setStatus('Import failed — invalid JSON.');
       }
     };
     reader.readAsText(file);
+  };
+
+  // JSON Import — Step 2: user confirmed. Take pre-import snapshots of every
+  // existing chapter, then overlay the backup contents.
+  const confirmImport = async () => {
+    if (!pendingImport) return;
+    const data = pendingImport;
+    setPendingImport(null);
+
+    try {
+      setStatus('Taking pre-import snapshots…');
+
+      // Walk every project currently in storage and snapshot each chapter.
+      const allKeys = await storage.listFiles();
+      // Match either single-project layout (Artifacts/chapter-<id>.md) or
+      // multi-project layout (projects/<pid>/Artifacts/chapter-<id>.md).
+      const chapterPathRe = /^(?:projects\/([^/]+)\/)?Artifacts\/chapter-([^/]+)\.md$/;
+      for (const path of allKeys) {
+        const m = path.match(chapterPathRe);
+        if (!m) continue;
+        const projId = m[1];
+        const chapId = m[2];
+        const content = (await storage.readFile(path)) ?? '';
+        await takeSnapshot(
+          storage,
+          chapId,
+          'pre-import',
+          'Pre-import safety snapshot',
+          content,
+          projId
+        ).catch(() => { /* ignore individual snapshot failures */ });
+      }
+
+      setStatus('Importing backup…');
+      for (const [path, content] of Object.entries(data)) {
+        await storage.writeFile(path, content);
+      }
+
+      setStatus('Import successful — reloading…');
+      setTimeout(() => window.location.reload(), 1200);
+    } catch {
+      setStatus('Import failed during write — partial state may remain.');
+    }
   };
 
   // DOCX Export
@@ -211,6 +266,15 @@ export default function ExportImportDialog({
           </button>
         </div>
       </div>
+
+      {/* Replace-on-import confirmation. */}
+      <ConfirmDialog
+        isOpen={pendingImport !== null}
+        title="Replace current data?"
+        message={`The backup contains ${pendingImport ? Object.keys(pendingImport).length : 0} entries and will overwrite anything stored under the same paths. A pre-import snapshot of every chapter will be taken first so you can roll back. Continue?`}
+        onConfirm={confirmImport}
+        onCancel={() => { setPendingImport(null); setStatus(null); }}
+      />
     </div>
   );
 }

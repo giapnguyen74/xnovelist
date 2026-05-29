@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "xnovelist — AI-Free Basic Novel Editor",
   description: "A local-first, distraction-free writing studio for novelists.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

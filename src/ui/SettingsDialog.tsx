@@ -107,12 +107,6 @@ export default function SettingsDialog({
           </div>
         </div>
 
-        {/* AI Info */}
-        <div className="p-3 bg-[var(--sidebar-bg)] rounded-lg text-xs opacity-75">
-          <span className="font-semibold block mb-1">AI Mode</span>
-          <span>AI features are not yet available. This is a secure, local-first v0.1 AI-Free layout.</span>
-        </div>
-
         <div className="flex justify-end pt-2">
           <button
             onClick={onClose}

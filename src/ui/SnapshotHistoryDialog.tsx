@@ -1,14 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { History, RotateCcw, AlertTriangle } from 'lucide-react';
+import { History, RotateCcw, AlertTriangle, Camera } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { ProjectStorage } from '../storage/ProjectStorage';
-import { listSnapshots, restoreSnapshot } from '../storage/snapshots';
+import { listSnapshots, restoreSnapshot, takeSnapshot } from '../storage/snapshots';
 import { SnapshotIndex } from '../storage/schemas';
+import ConfirmDialog from './ConfirmDialog';
 
 interface SnapshotHistoryDialogProps {
   isOpen: boolean;
   onClose: () => void;
   storage: ProjectStorage;
+  /** Project ID — required so snapshots are read/written under projects/<id>/.history/... */
+  projectId: string;
   chapterId: string;
   onRestored: (newMarkdown: string) => void;
 }
@@ -17,18 +20,21 @@ export default function SnapshotHistoryDialog({
   isOpen,
   onClose,
   storage,
+  projectId,
   chapterId,
   onRestored,
 }: SnapshotHistoryDialogProps) {
   const { t } = useTranslation();
   const [snapshots, setSnapshots] = useState<SnapshotIndex['snapshots']>([]);
   const [status, setStatus] = useState<string | null>(null);
+  // Track which snapshot the user is being asked to confirm restoring.
+  const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
 
   const loadSnaps = useCallback(async () => {
-    const list = await listSnapshots(storage, chapterId);
+    const list = await listSnapshots(storage, chapterId, projectId);
     // Sort descending by creation date
     setSnapshots([...list].reverse());
-  }, [storage, chapterId]);
+  }, [storage, chapterId, projectId]);
 
   useEffect(() => {
     if (isOpen && chapterId) {
@@ -38,18 +44,32 @@ export default function SnapshotHistoryDialog({
 
   if (!isOpen) return null;
 
-  const handleRestore = async (id: string) => {
+  const handleSnapshotNow = async () => {
     try {
-      setStatus('Restoring snapshot...');
-      const restoredText = await restoreSnapshot(storage, chapterId, id);
+      setStatus('Taking snapshot…');
+      await takeSnapshot(storage, chapterId, 'manual', 'Manual snapshot', undefined, projectId);
+      await loadSnaps();
+      setStatus('Snapshot taken.');
+      setTimeout(() => setStatus(null), 2000);
+    } catch {
+      setStatus('Snapshot failed.');
+    }
+  };
+
+  const performRestore = async (id: string) => {
+    setConfirmRestoreId(null);
+    try {
+      setStatus('Restoring snapshot…');
+      const restoredText = await restoreSnapshot(storage, chapterId, id, projectId);
       onRestored(restoredText);
-      setStatus('Restored!');
+      await loadSnaps(); // pre-restore snapshot was just created — refresh
+      setStatus('Restored.');
       setTimeout(() => {
         setStatus(null);
         onClose();
       }, 1000);
     } catch {
-      setStatus('Restore failed!');
+      setStatus('Restore failed.');
     }
   };
 
@@ -61,7 +81,17 @@ export default function SnapshotHistoryDialog({
             <History size={18} className="text-[var(--accent)]" />
             {t('snapshots')}
           </h3>
-          <button onClick={onClose} className="text-sm opacity-50 hover:opacity-100">✕</button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSnapshotNow}
+              className="flex items-center gap-1 text-[11px] font-semibold border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--sidebar-bg)] px-2.5 py-1 rounded transition-colors"
+              title="Take a manual snapshot of the current chapter"
+            >
+              <Camera size={12} />
+              Snapshot now
+            </button>
+            <button onClick={onClose} className="text-sm opacity-50 hover:opacity-100 ml-2">✕</button>
+          </div>
         </div>
 
         <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
@@ -78,7 +108,7 @@ export default function SnapshotHistoryDialog({
                   <span className="opacity-70 font-mono">[{s.type}] {s.label || ''}</span>
                 </div>
                 <button
-                  onClick={() => handleRestore(s.id)}
+                  onClick={() => setConfirmRestoreId(s.id)}
                   className="flex items-center gap-1 text-[11px] font-semibold bg-[var(--accent)] text-white hover:opacity-90 px-2.5 py-1 rounded transition-opacity"
                 >
                   <RotateCcw size={12} />
@@ -105,6 +135,15 @@ export default function SnapshotHistoryDialog({
           </button>
         </div>
       </div>
+
+      {/* Restore confirmation — replaces the current chapter contents */}
+      <ConfirmDialog
+        isOpen={confirmRestoreId !== null}
+        title="Restore this snapshot?"
+        message="This will replace the current chapter content with the snapshot. A pre-restore snapshot of the current text will be taken first, so you can roll back."
+        onConfirm={() => confirmRestoreId && performRestore(confirmRestoreId)}
+        onCancel={() => setConfirmRestoreId(null)}
+      />
     </div>
   );
 }

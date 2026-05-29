@@ -45,32 +45,52 @@ Every document is structured to stand alone. If you only have time to read one, 
 ---
 
 ## Status
-
-Pre-development. This pack defines the product before code lands. The first milestone (v0.1 — the AI-off editor, responsive across phone/tablet/desktop, English + Vietnamese UI) is the next deliverable; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for the sequence.
+ 
+v0.1 Implemented (AI-Free Basic Novel Editor). The first shippable core of xnovelist featuring local-first IndexedDB persistence, safe snapshots, an elegant writing canvas, character and location bible workspaces, and DOCX manuscript export.
 
 ---
 
-## Inheritance
+## Getting Started
 
-xnovelist inherits ideas from an earlier prototype called NovelWrite. The good ideas come with: Tiptap-based rich-text editing, BYOAI architecture, position-dependent continuity, the Story Bible as a domain model, AI as proposal-not-write, snapshots as the rollback safety net, the language-pack approach to prompts. The mistakes don't: xnovelist commits to IndexedDB from day one (no `localStorage`), to a single-app structure (no aspirational monorepo), to the AI master toggle being off by default, to explicit named tool sets per phase, to a Locations bible alongside Characters, to a structured Style schema, to mobile responsive as a v0.1 requirement (not a deferred goal), to a multilingual UI translation layer (NovelWrite shipped prompt packs but not UI translations), and to a privacy posture that backs the local-first pitch literally.
+First, install the dependencies:
+
+```bash
+npm install
+```
+
+### Run in Development Mode
+Run the local development server:
+
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+### Build and Export for Production
+Build the app for static production export:
+
+```bash
+npm run build
+```
+The built static website assets will be placed inside the `out/` folder, ready to be deployed to any static host or opened directly.
 
 ---
 
 ## Tech stack at a glance
 
-Next.js 16 (static export, `output: "export"`) · React 19 · Tiptap 3 · Tailwind 4 (responsive breakpoints) · IndexedDB via `idb` · zod for schema validation · `docx` for export · Vitest for tests. Build output is a folder of static files — that is the entire deployment artefact. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture and rationale.
+Next.js 15 (static export, `output: "export"`) · React 19 · Tiptap 3 · Tailwind 4 (responsive breakpoints) · IndexedDB via `idb` · zod for schema validation · `docx` for export. Build output is a folder of static files — that is the entire deployment artefact. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture and rationale.
 
 ---
 
-## Deployment
+## Deployment   
 
-The application is a static site. Three reference deployments:
+The application is a pure client-side static site. Three reference deployments:
 
-- **CDN (GitHub Pages, Cloudflare Pages, Netlify, S3+CloudFront)** — push the `out/` folder. Done.
-- **Self-hosted HTTP** — serve `out/` with any static file server (`nginx`, `caddy`, Python's `http.server`).
-- **Local filesystem** — open `out/index.html` directly. Some features (CORS-sensitive LLM endpoints) may need an HTTP context; local Ollama and LM Studio work from `file://`.
+- **GitHub Pages (Automated)** — The project includes a built-in GitHub Actions workflow under `.github/workflows/deploy.yml`. When you push code changes to the `main` branch, it automatically runs the production build and deploys the output to your GitHub Pages site.
+- **CDN (Cloudflare Pages, Netlify, S3+CloudFront)** — Run `npm run build` and upload the compiled static `out/` folder directly.
+- **Local / Self-hosted HTTP** — Serve the static `out/` folder with any static file server (such as `npx serve out` for offline local use, or Python's `http.server`, `nginx`, and `caddy` for self-hosting). Because it is a static-only client application, it does not require a custom backend API server or database runtime.
 
-No environment variables, no secrets, no deploy scripts beyond `npm run build`. The bundle CI builds is the bundle the user runs.
+No environment variables, no secrets, no manual deploy scripts beyond `npm run build`. The bundle CI builds is the bundle the user runs.
 
 ---
 

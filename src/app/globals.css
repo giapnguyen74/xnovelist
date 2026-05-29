@@ -1,14 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lato:ital,wght@0,300;0,400;0,700;1,400&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #fbfbf9;
-  --foreground: #20201e;
-  --border: #e8e6df;
-  --sidebar-bg: #f5f4ef;
-  --editor-bg: #fcfbf9;
-  --accent: #5850ec;
-  --accent-light: #ececfc;
+  --background: #f7f7f8;
+  --foreground: #171717;
+  --border: #d9dce3;
+  --sidebar-bg: #f0f1f3;
+  --editor-bg: #ffffff;
+  --accent: #10a37f;
+  --accent-light: rgba(16, 163, 127, 0.12);
   --font-serif: 'Merriweather', Georgia, serif;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
@@ -127,4 +127,99 @@ body {
 .location-highlight {
   border-bottom: 2px dotted #48bb78;
   cursor: pointer;
+}
+
+/* Custom font utilities — curated set for novel writing */
+.font-merriweather {
+  font-family: 'Merriweather', Georgia, serif;
+}
+
+.font-lora {
+  font-family: 'Lora', Georgia, serif;
+}
+
+.font-garamond {
+  font-family: 'EB Garamond', Garamond, Georgia, serif;
+}
+
+.font-source-serif {
+  font-family: 'Source Serif 4', 'Source Serif Pro', Georgia, serif;
+}
+
+.font-crimson {
+  font-family: 'Crimson Pro', Georgia, serif;
+}
+
+.font-lato {
+  font-family: 'Lato', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+.font-courier {
+  font-family: 'Courier Prime', 'Courier New', monospace;
+}
+
+/* Paragraph spacing helper levels */
+.ProseMirror.spacing-1 p { margin-bottom: 0.25em !important; }
+.ProseMirror.spacing-2 p { margin-bottom: 0.6em !important; }
+.ProseMirror.spacing-3 p { margin-bottom: 1.0em !important; }
+.ProseMirror.spacing-4 p { margin-bottom: 1.5em !important; }
+
+/* First line text indent levels */
+.ProseMirror.indent-1 p { --indent-val: 0.75em; }
+.ProseMirror.indent-2 p { --indent-val: 1.5em; }
+.ProseMirror.indent-3 p { --indent-val: 2.25em; }
+.ProseMirror.indent-4 p { --indent-val: 3.0em; }
+
+/* Chicago style publishing layout */
+.ProseMirror.chicago-style p {
+  text-indent: var(--indent-val, 1.5em);
+  margin-bottom: 0 !important;
+}
+
+.ProseMirror.chicago-style p:first-of-type,
+.ProseMirror.chicago-style hr + p,
+.ProseMirror.chicago-style div + p,
+.ProseMirror.chicago-style > p:first-child {
+  text-indent: 0 !important;
+}
+
+/* Alignments */
+.ProseMirror.align-left {
+  text-align: left;
+}
+.ProseMirror.align-justify {
+  text-align: justify;
+}
+
+/* Custom Scene Dividers */
+.ProseMirror.scene-divider-boxes hr::after {
+  content: '◆   ◆   ◆' !important;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  opacity: 0.7;
+}
+
+.ProseMirror.scene-divider-stars hr::after {
+  content: '★   ★   ★' !important;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  opacity: 0.7;
+}
+
+.ProseMirror.scene-divider-lines hr {
+  border-top: 1px solid var(--border) !important;
+  opacity: 0.6;
+  width: 30% !important;
+  margin: 2.5em auto !important;
+}
+
+.ProseMirror.scene-divider-lines hr::after {
+  content: none !important;
+}
+
+.ProseMirror.scene-divider-asterisk hr::after {
+  content: '*   *   *' !important;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  opacity: 0.7;
 }

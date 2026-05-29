@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit3, ArrowUp, ArrowDown, BookOpen } from 'lucide-react';
+import { Plus, Trash2, Edit3, ArrowUp, ArrowDown, BookOpen, Search, ChevronDown, ChevronRight, Users, MapPin, Feather, Compass } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
-
-interface Chapter {
-  id: string;
-  title: string;
-}
+import { Chapter, Character, Location } from '../storage/schemas';
 
 interface ChapterListProps {
   chapters: Chapter[];
@@ -17,6 +13,11 @@ interface ChapterListProps {
   onRenameChapter: (id: string, newTitle: string) => void;
   onDeleteChapter: (id: string) => void;
   onReorderChapters: (newOrder: string[]) => void;
+  
+  // Story Bible props for quick navigation
+  characters?: Character[];
+  locations?: Location[];
+  onSelectBibleItem?: (type: 'characters' | 'locations', id: string) => void;
 }
 
 export default function ChapterList({
@@ -29,10 +30,22 @@ export default function ChapterList({
   onRenameChapter,
   onDeleteChapter,
   onReorderChapters,
+  characters = [],
+  locations = [],
+  onSelectBibleItem,
 }: ChapterListProps) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  
+  const [sidebarTab, setSidebarTab] = useState<'outline' | 'bible'>('outline');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sectionsExpanded, setSectionsExpanded] = useState<Record<string, boolean>>({
+    characters: true,
+    locations: true,
+    objects: false,
+    others: false,
+  });
 
   const sortedChapters = [...chapterOrder]
     .map((id) => chapters.find((c) => c.id === id))
@@ -65,112 +78,270 @@ export default function ChapterList({
 
   return (
     <div className="flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border)] select-none">
-      <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
-        <span className="font-semibold text-sm uppercase tracking-wider text-[var(--foreground)] opacity-70 flex items-center gap-2">
-          <BookOpen size={16} />
-          {t('outline')}
-        </span>
+      {/* Sidebar Tabs */}
+      <div className="h-[53px] px-2 border-b border-[var(--border)] flex items-center justify-between gap-1 flex-shrink-0 bg-[var(--sidebar-bg)]">
         <button
-          onClick={onCreateChapter}
-          className="p-1 rounded-md hover:bg-[var(--border)] text-[var(--foreground)] transition-colors"
-          title={t('addChapter')}
+          onClick={() => setSidebarTab('outline')}
+          className={`flex-1 py-1.5 rounded text-xs font-semibold text-center transition-all cursor-pointer ${
+            sidebarTab === 'outline'
+              ? 'bg-[var(--accent)] text-white shadow-sm'
+              : 'text-[var(--foreground)] opacity-70 hover:opacity-100 hover:bg-[var(--border)]/40'
+          }`}
         >
-          <Plus size={18} />
+          {t('outline')}
+        </button>
+        <button
+          onClick={() => setSidebarTab('bible')}
+          className={`flex-1 py-1.5 rounded text-xs font-semibold text-center transition-all cursor-pointer ${
+            sidebarTab === 'bible'
+              ? 'bg-[var(--accent)] text-white shadow-sm'
+              : 'text-[var(--foreground)] opacity-70 hover:opacity-100 hover:bg-[var(--border)]/40'
+          }`}
+        >
+          Story Bible
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {sortedChapters.length === 0 ? (
-          <div className="text-center text-xs opacity-50 p-4">{t('noChapters')}</div>
-        ) : (
-          sortedChapters.map((chapter, index) => {
-            const isActive = chapter.id === activeChapterId;
-            const wCount = wordCounts[chapter.id] || 0;
+      {sidebarTab === 'outline' ? (
+        <>
+          <div className="px-3 py-2 border-b border-[var(--border)]/40 flex items-center justify-between flex-shrink-0 bg-[var(--sidebar-bg)]">
+            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Chapters</span>
+            <button
+              onClick={onCreateChapter}
+              className="p-1 rounded hover:bg-[var(--border)] text-[var(--foreground)] transition-colors cursor-pointer"
+              title={t('addChapter')}
+            >
+              <Plus size={14} />
+            </button>
+          </div>
 
-            return (
-              <div
-                key={chapter.id}
-                onClick={() => onSelectChapter(chapter.id)}
-                className={`group flex flex-col p-2.5 rounded-lg cursor-pointer transition-all duration-150 ${
-                  isActive
-                    ? 'bg-[var(--accent)] text-white shadow-sm'
-                    : 'hover:bg-[var(--border)] text-[var(--foreground)]'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  {editingId === chapter.id ? (
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onBlur={() => handleSaveRename(chapter.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveRename(chapter.id);
-                        if (e.key === 'Escape') setEditingId(null);
-                      }}
-                      className="flex-1 bg-white text-black text-sm px-2 py-0.5 rounded border border-[var(--accent)] focus:outline-none"
-                      autoFocus
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <span className="font-medium text-sm truncate flex-1 pr-2">
-                      {chapter.title}
-                    </span>
-                  )}
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {sortedChapters.length === 0 ? (
+              <div className="text-center text-xs opacity-50 p-4">{t('noChapters')}</div>
+            ) : (
+              sortedChapters.map((chapter, index) => {
+                const isActive = chapter.id === activeChapterId;
+                const wCount = wordCounts[chapter.id] || 0;
 
-                  <div className="hidden group-hover:flex items-center gap-1">
-                    {index > 0 && (
-                      <button
-                        onClick={(e) => handleMove(index, 'up', e)}
-                        className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
-                          isActive ? 'text-white' : 'text-[var(--foreground)] opacity-70'
-                        }`}
-                      >
-                        <ArrowUp size={14} />
-                      </button>
-                    )}
-                    {index < sortedChapters.length - 1 && (
-                      <button
-                        onClick={(e) => handleMove(index, 'down', e)}
-                        className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
-                          isActive ? 'text-white' : 'text-[var(--foreground)] opacity-70'
-                        }`}
-                      >
-                        <ArrowDown size={14} />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => handleStartRename(chapter, e)}
-                      className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
-                        isActive ? 'text-white' : 'text-[var(--foreground)] opacity-70'
-                      }`}
-                    >
-                      <Edit3 size={14} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteChapter(chapter.id);
-                      }}
-                      className={`p-0.5 rounded hover:bg-red-500/20 transition-colors ${
-                        isActive ? 'text-white hover:bg-red-600' : 'text-red-500 hover:text-red-700'
-                      }`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                return (
+                  <div
+                    key={chapter.id}
+                    onClick={() => onSelectChapter(chapter.id)}
+                    className={`group flex flex-col p-2.5 rounded-lg cursor-pointer transition-all duration-150 ${
+                      isActive
+                        ? 'bg-[var(--accent)] text-white shadow-sm'
+                        : 'hover:bg-[var(--border)] text-[var(--foreground)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      {editingId === chapter.id ? (
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onBlur={() => handleSaveRename(chapter.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveRename(chapter.id);
+                            if (e.key === 'Escape') setEditingId(null);
+                          }}
+                          className="flex-1 bg-white text-black text-sm px-2 py-0.5 rounded border border-[var(--accent)] focus:outline-none"
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="font-medium text-sm truncate flex-1 pr-2">
+                          {chapter.title}
+                        </span>
+                      )}
+
+                      <div className="hidden group-hover:flex items-center gap-1">
+                        {index > 0 && (
+                          <button
+                            onClick={(e) => handleMove(index, 'up', e)}
+                            className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
+                              isActive ? 'text-white' : 'text-[var(--foreground)] opacity-70'
+                            }`}
+                          >
+                            <ArrowUp size={14} />
+                          </button>
+                        )}
+                        {index < sortedChapters.length - 1 && (
+                          <button
+                            onClick={(e) => handleMove(index, 'down', e)}
+                            className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
+                              isActive ? 'text-white' : 'text-[var(--foreground)] opacity-70'
+                            }`}
+                          >
+                            <ArrowDown size={14} />
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => handleStartRename(chapter, e)}
+                          className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
+                            isActive ? 'text-white' : 'text-[var(--foreground)] opacity-70'
+                          }`}
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteChapter(chapter.id);
+                          }}
+                          className={`p-0.5 rounded hover:bg-red-500/20 transition-colors ${
+                            isActive ? 'text-white hover:bg-red-600' : 'text-red-500 hover:text-red-700'
+                          }`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-1 text-[11px] opacity-70">
+                      <span>
+                        {wCount} {t('wordCount')}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Search Input */}
+          <div className="p-3 border-b border-[var(--border)]/40 flex-shrink-0 bg-[var(--sidebar-bg)]">
+            <div className="relative flex items-center">
+              <Search size={14} className="absolute left-2.5 text-[var(--foreground)] opacity-50" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search all entries..."
+                className="w-full bg-[var(--background)] border border-[var(--border)] rounded px-8 py-1.5 text-xs focus:outline-none focus:border-[var(--accent)] text-[var(--foreground)]"
+              />
+            </div>
+          </div>
 
-                <div className="flex items-center justify-between mt-1 text-[11px] opacity-70">
-                  <span>
-                    {wCount} {t('wordCount')}
-                  </span>
+          {/* Collapsible Categories */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Characters Section */}
+            <div className="border-b border-[var(--border)]/40">
+              <button
+                onClick={() => setSectionsExpanded(prev => ({ ...prev, characters: !prev.characters }))}
+                className="w-full px-3 py-2.5 flex items-center justify-between text-xs font-semibold hover:bg-[var(--border)]/30 transition-colors text-[var(--foreground)] opacity-85 cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Users size={12} className="text-[var(--accent)]" />
+                  Characters
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] opacity-60">
+                  {characters.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())).length} entries
+                  {sectionsExpanded.characters ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </span>
+              </button>
+              
+              {sectionsExpanded.characters && (
+                <div className="p-1 space-y-0.5 bg-[var(--sidebar-bg)]">
+                  {characters
+                    .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map(char => (
+                      <div
+                        key={char.id}
+                        onClick={() => onSelectBibleItem?.('characters', char.id)}
+                        className="px-6 py-1.5 text-xs rounded hover:bg-[var(--border)] cursor-pointer text-[var(--foreground)] opacity-90 truncate transition-colors"
+                      >
+                        {char.name}
+                      </div>
+                    ))}
+                  {characters.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                    <div className="px-6 py-2 text-[10px] opacity-40 italic">No characters found</div>
+                  )}
                 </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+              )}
+            </div>
+
+            {/* Locations Section */}
+            <div className="border-b border-[var(--border)]/40">
+              <button
+                onClick={() => setSectionsExpanded(prev => ({ ...prev, locations: !prev.locations }))}
+                className="w-full px-3 py-2.5 flex items-center justify-between text-xs font-semibold hover:bg-[var(--border)]/30 transition-colors text-[var(--foreground)] opacity-85 cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={12} className="text-[var(--accent)]" />
+                  Locations
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] opacity-60">
+                  {locations.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).length} entries
+                  {sectionsExpanded.locations ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </span>
+              </button>
+              
+              {sectionsExpanded.locations && (
+                <div className="p-1 space-y-0.5 bg-[var(--sidebar-bg)]">
+                  {locations
+                    .filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map(loc => (
+                      <div
+                        key={loc.id}
+                        onClick={() => onSelectBibleItem?.('locations', loc.id)}
+                        className="px-6 py-1.5 text-xs rounded hover:bg-[var(--border)] cursor-pointer text-[var(--foreground)] opacity-90 truncate transition-colors"
+                      >
+                        {loc.name}
+                      </div>
+                    ))}
+                  {locations.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                    <div className="px-6 py-2 text-[10px] opacity-40 italic">No locations found</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Objects/Items Section (Mock to match screenshot design) */}
+            <div className="border-b border-[var(--border)]/40">
+              <button
+                onClick={() => setSectionsExpanded(prev => ({ ...prev, objects: !prev.objects }))}
+                className="w-full px-3 py-2.5 flex items-center justify-between text-xs font-semibold hover:bg-[var(--border)]/30 transition-colors text-[var(--foreground)] opacity-85 cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Compass size={12} className="text-[var(--accent)] opacity-80" />
+                  Objects/Items
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] opacity-60">
+                  0 entries
+                  {sectionsExpanded.objects ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </span>
+              </button>
+              
+              {sectionsExpanded.objects && (
+                <div className="px-6 py-3 text-[10px] opacity-40 italic">No objects or items defined. Add them in inhabitants or location notes.</div>
+              )}
+            </div>
+
+            {/* Others Section (Mock to match screenshot design) */}
+            <div className="border-b border-[var(--border)]/40">
+              <button
+                onClick={() => setSectionsExpanded(prev => ({ ...prev, others: !prev.others }))}
+                className="w-full px-3 py-2.5 flex items-center justify-between text-xs font-semibold hover:bg-[var(--border)]/30 transition-colors text-[var(--foreground)] opacity-85 cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Feather size={12} className="text-[var(--accent)] opacity-80" />
+                  Others
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] opacity-60">
+                  0 entries
+                  {sectionsExpanded.others ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </span>
+              </button>
+              
+              {sectionsExpanded.others && (
+                <div className="px-6 py-3 text-[10px] opacity-40 italic">No custom categories.</div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

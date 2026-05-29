@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1414" viewBox="0 0 1000 1414" role="img" aria-label="Abstract flat vector book cover background">
+  <defs>
+    <clipPath id="coverClip">
+      <rect width="1000" height="1414" rx="0"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#coverClip)">
+    <!-- Base background -->
+    <rect width="1000" height="1414" fill="#F7F0E3"/>
+
+    <!-- Pale peach sun / circle, cropped at top right -->
+    <circle cx="1005" cy="110" r="275" fill="#EBC6A6"/>
+
+    <!-- Left muted green organic shape -->
+    <path d="M -90 590
+             C -52 455, 18 362, 124 309
+             C 216 263, 258 247, 300 220
+             C 300 220, 258 341, 250 438
+             C 242 540, 239 651, 180 739
+             C 117 834, 11 848, -74 812
+             C -145 781, -138 679, -90 590 Z" fill="#9BAFA4"/>
+
+    <!-- Deep navy top-left flowing mass -->
+    <path d="M -150 -105
+             L 510 -105
+             C 493 25, 452 130, 362 190
+             C 273 250, 151 248, 79 356
+             C 27 434, 21 523, -52 591
+             C -102 637, -150 657, -150 657 Z" fill="#17334C"/>
+
+    <!-- Terracotta lower-left organic shape -->
+    <path d="M -90 732
+             C 10 720, 82 745, 147 816
+             C 218 893, 248 994, 331 1068
+             C 395 1125, 492 1144, 548 1223
+             C 489 1246, 421 1282, 373 1350
+             C 330 1411, 283 1460, 188 1486
+             L -90 1486 Z" fill="#C8673E"/>
+
+    <!-- Pale lower center layer -->
+    <path d="M 388 1265
+             C 470 1161, 613 1154, 759 1174
+             C 848 1186, 946 1160, 1088 1090
+             L 1088 1486
+             L 288 1486
+             C 299 1408, 333 1335, 388 1265 Z" fill="#EAD8B8"/>
+
+    <!-- Gray-green lower-right flowing hill -->
+    <path d="M 477 1486
+             C 461 1354, 510 1242, 606 1176
+             C 702 1110, 795 1090, 860 1009
+             C 914 942, 987 924, 1088 920
+             L 1088 1486 Z" fill="#B2B2A2"/>
+
+    <!-- Thin white curve on lower-right hill -->
+    <path d="M 564 1415
+             C 614 1357, 701 1352, 760 1282
+             C 814 1218, 827 1142, 886 1098
+             C 938 1059, 988 1047, 1082 1044"
+          fill="none" stroke="#F7F0E3" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- Fine gold curve through upper-left shapes -->
+    <path d="M 392 -40
+             C 363 61, 324 129, 244 188
+             C 173 240, 130 275, 112 344
+             C 93 415, 93 493, 47 556
+             C 13 604, -31 636, -84 661"
+          fill="none" stroke="#C9AF67" stroke-width="5" stroke-linecap="round"/>
+
+    <!-- Botanical silhouette: branch and leaves -->
+    <g fill="#17334C" stroke="#17334C" stroke-linecap="round" stroke-linejoin="round">
+      <!-- main stem -->
+      <path d="M -5 1396
+               C 28 1326, 57 1265, 100 1205
+               C 137 1153, 161 1110, 176 1046"
+            fill="none" stroke-width="8"/>
+      <!-- side stems -->
+      <path d="M 59 1260 C 86 1248, 105 1228, 125 1202" fill="none" stroke-width="5"/>
+      <path d="M 87 1218 C 114 1202, 135 1179, 153 1149" fill="none" stroke-width="5"/>
+      <path d="M 114 1175 C 142 1161, 167 1134, 193 1105" fill="none" stroke-width="5"/>
+      <path d="M 142 1135 C 179 1121, 204 1103, 231 1078" fill="none" stroke-width="5"/>
+      <path d="M 158 1086 C 183 1065, 203 1038, 219 1002" fill="none" stroke-width="5"/>
+      <!-- leaves left/right as organic pointed ellipses -->
+      <path d="M 34 1351 C -8 1335 -35 1300 -61 1256 C -17 1268 18 1302 34 1351 Z"/>
+      <path d="M 54 1302 C 11 1276 -2 1231 -4 1186 C 34 1214 59 1252 54 1302 Z"/>
+      <path d="M 82 1260 C 47 1223 40 1181 50 1138 C 83 1174 104 1214 82 1260 Z"/>
+      <path d="M 108 1214 C 80 1171 83 1127 106 1084 C 133 1129 135 1173 108 1214 Z"/>
+      <path d="M 132 1168 C 116 1120 128 1079 161 1046 C 180 1095 169 1136 132 1168 Z"/>
+      <path d="M 124 1200 C 173 1186 219 1195 258 1223 C 208 1238 164 1230 124 1200 Z"/>
+      <path d="M 153 1151 C 207 1132 251 1140 289 1165 C 238 1187 190 1182 153 1151 Z"/>
+      <path d="M 184 1108 C 228 1075 269 1063 317 1070 C 279 1106 233 1123 184 1108 Z"/>
+      <path d="M 205 1056 C 235 1016 274 988 319 974 C 299 1024 261 1054 205 1056 Z"/>
+    </g>
+  </g>
+</svg>

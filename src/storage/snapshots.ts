@@ -19,16 +19,18 @@ export async function takeSnapshot(
   chapterId: string,
   type: Snapshot['type'],
   label?: string,
-  explicitContent?: string
+  explicitContent?: string,
+  projectId?: string
 ): Promise<void> {
-  const contentPath = `Artifacts/chapter-${chapterId}.md`;
+  const prefix = projectId ? `projects/${projectId}/` : '';
+  const contentPath = `${prefix}Artifacts/chapter-${chapterId}.md`;
   const markdown = explicitContent !== undefined ? explicitContent : (await storage.readFile(contentPath) || '');
 
   const contentHash = simpleHash(markdown);
   const createdAt = new Date().toISOString();
   const id = `${createdAt.replace(/:/g, '-')}-${type}`;
 
-  const indexPath = `.history/Artifacts/chapter-${chapterId}/index.json`;
+  const indexPath = `${prefix}.history/Artifacts/chapter-${chapterId}/index.json`;
   let indexData: SnapshotIndex = { snapshots: [] };
 
   if (await storage.exists(indexPath)) {
@@ -52,7 +54,7 @@ export async function takeSnapshot(
   }
 
   // Save the snapshot file itself
-  const snapFilePath = `.history/Artifacts/chapter-${chapterId}/${id}.md`;
+  const snapFilePath = `${prefix}.history/Artifacts/chapter-${chapterId}/${id}.md`;
   await storage.writeFile(snapFilePath, markdown);
 
   // Update index
@@ -79,7 +81,7 @@ export async function takeSnapshot(
       const match = toPrune.find(p => p.id === snap.id);
       if (match) {
         // Delete snapshot file from IndexedDB
-        const prunePath = `.history/Artifacts/chapter-${chapterId}/${snap.id}.md`;
+        const prunePath = `${prefix}.history/Artifacts/chapter-${chapterId}/${snap.id}.md`;
         await storage.deleteFile(prunePath).catch(() => {});
       } else {
         keepList.push(snap);
@@ -93,9 +95,11 @@ export async function takeSnapshot(
 
 export async function listSnapshots(
   storage: ProjectStorage,
-  chapterId: string
+  chapterId: string,
+  projectId?: string
 ): Promise<SnapshotIndex['snapshots']> {
-  const indexPath = `.history/Artifacts/chapter-${chapterId}/index.json`;
+  const prefix = projectId ? `projects/${projectId}/` : '';
+  const indexPath = `${prefix}.history/Artifacts/chapter-${chapterId}/index.json`;
   if (!(await storage.exists(indexPath))) {
     return [];
   }
@@ -112,29 +116,33 @@ export async function listSnapshots(
 export async function readSnapshot(
   storage: ProjectStorage,
   chapterId: string,
-  snapshotId: string
+  snapshotId: string,
+  projectId?: string
 ): Promise<string | null> {
-  const snapFilePath = `.history/Artifacts/chapter-${chapterId}/${snapshotId}.md`;
+  const prefix = projectId ? `projects/${projectId}/` : '';
+  const snapFilePath = `${prefix}.history/Artifacts/chapter-${chapterId}/${snapshotId}.md`;
   return await storage.readFile(snapFilePath);
 }
 
 export async function restoreSnapshot(
   storage: ProjectStorage,
   chapterId: string,
-  snapshotId: string
+  snapshotId: string,
+  projectId?: string
 ): Promise<string> {
+  const prefix = projectId ? `projects/${projectId}/` : '';
   // First, take a pre-restore snapshot of the current content before we replace it
-  await takeSnapshot(storage, chapterId, 'pre-restore', `Pre-restore roll back of ${snapshotId}`);
+  await takeSnapshot(storage, chapterId, 'pre-restore', `Pre-restore roll back of ${snapshotId}`, undefined, projectId);
 
   // Fetch snapshot content
-  const snapFilePath = `.history/Artifacts/chapter-${chapterId}/${snapshotId}.md`;
+  const snapFilePath = `${prefix}.history/Artifacts/chapter-${chapterId}/${snapshotId}.md`;
   const snapContent = await storage.readFile(snapFilePath);
   if (snapContent === null) {
     throw new Error('Snapshot file not found');
   }
 
   // Overwrite active chapter
-  const contentPath = `Artifacts/chapter-${chapterId}.md`;
+  const contentPath = `${prefix}Artifacts/chapter-${chapterId}.md`;
   await storage.writeFile(contentPath, snapContent);
   return snapContent;
 }
