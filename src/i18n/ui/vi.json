@@ -214,5 +214,7 @@
   "chaptersMobile": "Chương",
   "moreMobile": "Thêm",
   "distractionFree": "Toàn màn hình",
-  "workspacePrefs": "Tuỳ chỉnh chung"
+  "workspacePrefs": "Tùy chỉnh",
+  "generalSettings": "Tùy chỉnh chung",
+  "aiSettings": "Cấu hình AI"
 }

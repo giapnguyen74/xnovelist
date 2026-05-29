@@ -32,6 +32,9 @@ interface EditorCanvasProps {
   locations?: Location[];
   highlightBibleRefs?: boolean;
   onAttachEvidence?: (entityType: 'characters' | 'locations', entityId: string, quote: string) => void;
+  aiLevel?: number;
+  isAIPanelOpen?: boolean;
+  onToggleAIPanel?: () => void;
 }
 
 // Manuscript-page math: 250 words/page (double-spaced standard), 200 wpm reading pace.
@@ -66,6 +69,9 @@ export default function EditorCanvas({
   locations = [],
   highlightBibleRefs = true,
   onAttachEvidence,
+  aiLevel = 0,
+  isAIPanelOpen = false,
+  onToggleAIPanel,
 }: EditorCanvasProps) {
   const { t } = useTranslation();
   const [title, setTitle] = useState(initialTitle);
@@ -681,6 +687,9 @@ export default function EditorCanvas({
           onChangeTypography={onChangeTypography}
           isDistractionFree={isDistractionFree}
           onToggleDistractionFree={onToggleDistractionFree}
+          aiLevel={aiLevel}
+          isAIPanelOpen={isAIPanelOpen}
+          onToggleAIPanel={onToggleAIPanel}
         />
       )}
 

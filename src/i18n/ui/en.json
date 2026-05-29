@@ -214,5 +214,7 @@
   "chaptersMobile": "Chapters",
   "moreMobile": "More",
   "distractionFree": "Distraction-Free",
-  "workspacePrefs": "Workspace Preferences"
+  "workspacePrefs": "Preferences",
+  "generalSettings": "General Settings",
+  "aiSettings": "AI Settings"
 }

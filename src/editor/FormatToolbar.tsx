@@ -15,7 +15,8 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
-  AlignJustify
+  AlignJustify,
+  Sparkles
 } from 'lucide-react';
 import { TypographySettings } from '../storage/schemas';
 import { Editor } from '@tiptap/react';
@@ -27,6 +28,9 @@ interface FormatToolbarProps {
   onChangeTypography: (settings: Partial<TypographySettings>) => void;
   isDistractionFree: boolean;
   onToggleDistractionFree: () => void;
+  aiLevel?: number;
+  isAIPanelOpen?: boolean;
+  onToggleAIPanel?: () => void;
 }
 
 export default function FormatToolbar({
@@ -35,6 +39,9 @@ export default function FormatToolbar({
   onChangeTypography,
   isDistractionFree,
   onToggleDistractionFree,
+  aiLevel = 0,
+  isAIPanelOpen = false,
+  onToggleAIPanel,
 }: FormatToolbarProps) {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -246,6 +253,18 @@ export default function FormatToolbar({
         >
           {isDistractionFree ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
         </button>
+
+        {aiLevel >= 1 && onToggleAIPanel && (
+          <button
+            onClick={onToggleAIPanel}
+            className={`p-1.5 rounded transition-colors cursor-pointer ${
+              isAIPanelOpen ? 'bg-[var(--accent)] text-white' : 'hover:bg-[var(--border)] text-[var(--foreground)]'
+            }`}
+            title="AI Co-Writer Panel (Cmd/Ctrl + J)"
+          >
+            <Sparkles size={16} />
+          </button>
+        )}
       </div>
 
       {/* TYPOGRAPHY SETTINGS POPOVER DIALOG */}

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Settings, History, Plus, FolderPlus, ArrowLeft, Download,
-  Menu, MoreHorizontal, X as CloseIcon, BookOpen, Maximize2,
+  Menu, MoreHorizontal, X as CloseIcon, BookOpen, Maximize2, Sparkles,
 } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { IndexedDBProjectStorage } from '../storage/IndexedDBProjectStorage';
@@ -20,6 +20,9 @@ import ConfirmDialog from '../ui/ConfirmDialog';
 import OutlineGrid from '../ui/OutlineGrid';
 import ProjectSettings from '../ui/ProjectSettings';
 import CommandPalette from '../editor/CommandPalette';
+import { WorkspaceAIConfig, loadAIConfig, saveAIConfig, DEFAULT_AI_CONFIG } from '../storage/aiConfig';
+import AIPanel from '../ui/AIPanel';
+import AISettingsView from '../ui/AISettingsView';
 
 interface ProjectListItem {
   id: string;
@@ -35,6 +38,9 @@ interface ProjectListItem {
 export default function WorkspacePage() {
   const { t } = useTranslation();
   const [storage, setStorage] = useState<ProjectStorage | null>(null);
+  const [workspaceAI, setWorkspaceAI] = useState<WorkspaceAIConfig>(DEFAULT_AI_CONFIG);
+  const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
+  const [showAISettingsPage, setShowAISettingsPage] = useState(false);
 
   // Dashboard state
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
@@ -142,6 +148,9 @@ export default function WorkspacePage() {
     setStorage(store);
 
     const loadRegistry = async () => {
+      const aiConfig = await loadAIConfig(store);
+      setWorkspaceAI(aiConfig);
+
       let registryList: ProjectListItem[] = [];
       const exists = await store.exists('projects.json');
       if (exists) {
@@ -263,10 +272,16 @@ export default function WorkspacePage() {
         e.preventDefault();
         setActiveTab((prev) => (prev === 'outline' ? 'editor' : 'outline'));
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        if (workspaceAI.level >= 1) {
+          e.preventDefault();
+          setIsAIPanelOpen((prev) => !prev);
+        }
+      }
     };
     window.addEventListener('keydown', handleShortcuts);
     return () => window.removeEventListener('keydown', handleShortcuts);
-  }, [currentProjectId]);
+  }, [currentProjectId, workspaceAI]);
 
 
   // Load last used pen name when create modal is opened
@@ -294,6 +309,8 @@ export default function WorkspacePage() {
       if (isExportOpen) { setIsExportOpen(false); return; }
       if (isHistoryOpen) { setIsHistoryOpen(false); return; }
       if (isCreateModalOpen) { setIsCreateModalOpen(false); return; }
+      if (isAIPanelOpen) { setIsAIPanelOpen(false); return; }
+      if (showAISettingsPage) { setShowAISettingsPage(false); return; }
       if (isDistractionFree) { setIsDistractionFree(false); return; }
     };
     window.addEventListener('keydown', handleEsc);
@@ -307,6 +324,8 @@ export default function WorkspacePage() {
     isExportOpen,
     isHistoryOpen,
     isCreateModalOpen,
+    isAIPanelOpen,
+    showAISettingsPage,
     isDistractionFree,
   ]);
 
@@ -581,6 +600,13 @@ export default function WorkspacePage() {
 
     await storage.writeFile(`${prefix}Project.json`, JSON.stringify(updatedProject));
     await takeSnapshot(storage, id, 'manual', 'Chapter Created', newMarkdown, project.id);
+  };
+
+  const handleSaveAIConfig = async (newConfig: WorkspaceAIConfig) => {
+    setWorkspaceAI(newConfig);
+    if (storage) {
+      await saveAIConfig(storage, newConfig);
+    }
   };
 
   // Rename chapter handler
@@ -874,6 +900,18 @@ export default function WorkspacePage() {
     );
   }
 
+  // AI Settings Full Page View
+  if (showAISettingsPage) {
+    return (
+      <AISettingsView
+        workspaceAI={workspaceAI}
+        onChangeAIConfig={handleSaveAIConfig}
+        onBack={() => setShowAISettingsPage(false)}
+        backLabel={currentProjectId ? "Back to Novel" : "Back to Novels Dashboard"}
+      />
+    );
+  }
+
   // RENDER DASHBOARD
   if (currentProjectId === null) {
     return (
@@ -896,6 +934,24 @@ export default function WorkspacePage() {
                 className="p-2 rounded-lg border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-xs font-semibold"
               >
                 {theme === 'light' ? t('darkMode') : t('lightMode')}
+              </button>
+
+              {/* General Settings */}
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-2 rounded-lg border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-xs font-semibold flex items-center gap-1.5 cursor-pointer text-[var(--foreground)]"
+              >
+                <Settings size={14} className="opacity-80" />
+                <span>{t('generalSettings')}</span>
+              </button>
+
+              {/* AI Settings */}
+              <button
+                onClick={() => setShowAISettingsPage(true)}
+                className="p-2 rounded-lg border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-xs font-semibold flex items-center gap-1.5 cursor-pointer text-[var(--foreground)]"
+              >
+                <Sparkles size={14} className="opacity-80 text-[var(--accent)] animate-pulse" />
+                <span>{t('aiSettings')}</span>
               </button>
             </div>
           </div>
@@ -1067,6 +1123,14 @@ export default function WorkspacePage() {
           onConfirm={confirmDeleteProject}
           onCancel={() => setProjectDeleteId(null)}
         />
+
+        {/* Settings Dialog */}
+        <SettingsDialog
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          theme={theme}
+          onChangeTheme={setTheme}
+        />
       </div>
     );
   }
@@ -1187,14 +1251,7 @@ export default function WorkspacePage() {
               <Download size={16} />
             </button>
 
-            {/* General setting dialog button */}
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="hidden sm:block p-1.5 rounded hover:bg-[var(--border)] text-[var(--foreground)] opacity-80 hover:opacity-100 transition-colors"
-              title="Settings"
-            >
-              <Settings size={16} />
-            </button>
+            {/* General settings moved to Dashboard for workspace-level global scope */}
 
             {/* Phone overflow — opens the More bottom sheet */}
             <button
@@ -1304,39 +1361,50 @@ export default function WorkspacePage() {
             )}
 
             {/* Canvas Area */}
-            <div className="flex-1 overflow-hidden h-full">
-              {project.activeChapterId ? (
-                <EditorCanvas
-                  chapterId={project.activeChapterId}
-                  chapterIndex={(project.chapterOrder ?? []).indexOf(project.activeChapterId) + 1}
-                  initialTitle={chapters.find((c) => c.id === project.activeChapterId)?.title || ''}
-                  initialMarkdown={activeChapterMarkdown}
-                  typography={globalTypography}
-                  onChangeTypography={handleChangeTypography}
-                  onSave={handleSaveChapterMarkdown}
-                  onWordCountChange={handleWordCountUpdate}
-                  onManualSnapshot={handleManualSnapshot}
-                  onTitleChange={(title) => handleRenameChapter(project.activeChapterId, title)}
-                  isDistractionFree={isDistractionFree}
-                  onToggleDistractionFree={() => setIsDistractionFree(!isDistractionFree)}
-                  jumpToSearchQuery={jumpToSearchQuery}
-                  onClearJumpToSearchQuery={() => setJumpToSearchQuery(null)}
-                  characters={characters.characters}
-                  locations={locations.locations}
-                  highlightBibleRefs={project.highlightBibleRefs ?? true}
-                  onAttachEvidence={handleAttachEvidence}
-                />
-              ) : (
-                <div className="h-full w-full flex flex-col items-center justify-center text-xs opacity-50 bg-[var(--editor-bg)]">
-                  <span>{t('noChapters')}</span>
-                  <button
-                    onClick={handleCreateChapter}
-                    className="mt-4 px-4 py-2 bg-[var(--accent)] text-white font-medium rounded-none hover:opacity-90 cursor-pointer"
-                  >
-                    {t('addChapter')}
-                  </button>
-                </div>
-              )}
+            <div className="flex-1 overflow-hidden h-full flex">
+              <div className="flex-1 overflow-hidden h-full">
+                {project.activeChapterId ? (
+                  <EditorCanvas
+                    chapterId={project.activeChapterId}
+                    chapterIndex={(project.chapterOrder ?? []).indexOf(project.activeChapterId) + 1}
+                    initialTitle={chapters.find((c) => c.id === project.activeChapterId)?.title || ''}
+                    initialMarkdown={activeChapterMarkdown}
+                    typography={globalTypography}
+                    onChangeTypography={handleChangeTypography}
+                    onSave={handleSaveChapterMarkdown}
+                    onWordCountChange={handleWordCountUpdate}
+                    onManualSnapshot={handleManualSnapshot}
+                    onTitleChange={(title) => handleRenameChapter(project.activeChapterId, title)}
+                    isDistractionFree={isDistractionFree}
+                    onToggleDistractionFree={() => setIsDistractionFree(!isDistractionFree)}
+                    jumpToSearchQuery={jumpToSearchQuery}
+                    onClearJumpToSearchQuery={() => setJumpToSearchQuery(null)}
+                    characters={characters.characters}
+                    locations={locations.locations}
+                    highlightBibleRefs={project.highlightBibleRefs ?? true}
+                    onAttachEvidence={handleAttachEvidence}
+                    aiLevel={workspaceAI.level}
+                    isAIPanelOpen={isAIPanelOpen}
+                    onToggleAIPanel={() => setIsAIPanelOpen(!isAIPanelOpen)}
+                  />
+                ) : (
+                  <div className="h-full w-full flex flex-col items-center justify-center text-xs opacity-50 bg-[var(--editor-bg)]">
+                    <span>{t('noChapters')}</span>
+                    <button
+                      onClick={handleCreateChapter}
+                      className="mt-4 px-4 py-2 bg-[var(--accent)] text-white font-medium rounded-none hover:opacity-90 cursor-pointer"
+                    >
+                      {t('addChapter')}
+                    </button>
+                  </div>
+                )}
+              </div>
+              <AIPanel
+                isOpen={isAIPanelOpen && workspaceAI.level >= 1}
+                onClose={() => setIsAIPanelOpen(false)}
+                workspaceAI={workspaceAI}
+                onOpenPreferences={() => setShowAISettingsPage(true)}
+              />
             </div>
           </>
         )}
@@ -1475,7 +1543,8 @@ export default function WorkspacePage() {
               { label: t('snapshots'), icon: History, onClick: () => { setIsHistoryOpen(true); setIsMobileMoreOpen(false); } },
               { label: t('export'), icon: Download, onClick: () => { setIsExportOpen(true); setIsMobileMoreOpen(false); } },
               { label: t('distractionFree'), icon: Maximize2, onClick: () => { setIsDistractionFree(true); setIsMobileMoreOpen(false); } },
-              { label: t('workspacePrefs'), icon: Settings, onClick: () => { setIsSettingsOpen(true); setIsMobileMoreOpen(false); } },
+              { label: t('generalSettings'), icon: Settings, onClick: () => { setIsSettingsOpen(true); setIsMobileMoreOpen(false); } },
+              { label: t('aiSettings'), icon: Sparkles, onClick: () => { setShowAISettingsPage(true); setIsMobileMoreOpen(false); } },
             ].map(({ label, icon: Icon, onClick }) => (
               <button
                 key={label}

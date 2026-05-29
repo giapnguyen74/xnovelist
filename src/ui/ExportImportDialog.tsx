@@ -58,6 +58,7 @@ export default function ExportImportDialog({
       const backup: Record<string, string> = {};
 
       for (const p of paths) {
+        if (p === 'workspace/ai.json') continue;
         const content = await storage.readFile(p);
         if (content !== null) {
           backup[p] = content;
@@ -136,6 +137,7 @@ export default function ExportImportDialog({
 
       setStatus(t('importingBackup'));
       for (const [path, content] of Object.entries(data)) {
+        if (path === 'workspace/ai.json') continue;
         await storage.writeFile(path, content);
       }
 
