@@ -46,30 +46,30 @@ export default function SnapshotHistoryDialog({
 
   const handleSnapshotNow = async () => {
     try {
-      setStatus('Taking snapshot…');
+      setStatus(t('takingSnapshot'));
       await takeSnapshot(storage, chapterId, 'manual', 'Manual snapshot', undefined, projectId);
       await loadSnaps();
-      setStatus('Snapshot taken.');
+      setStatus(t('snapshotTaken'));
       setTimeout(() => setStatus(null), 2000);
     } catch {
-      setStatus('Snapshot failed.');
+      setStatus(t('snapshotFailed'));
     }
   };
 
   const performRestore = async (id: string) => {
     setConfirmRestoreId(null);
     try {
-      setStatus('Restoring snapshot…');
+      setStatus(t('restoringSnapshot'));
       const restoredText = await restoreSnapshot(storage, chapterId, id, projectId);
       onRestored(restoredText);
       await loadSnaps(); // pre-restore snapshot was just created — refresh
-      setStatus('Restored.');
+      setStatus(t('restored'));
       setTimeout(() => {
         setStatus(null);
         onClose();
       }, 1000);
     } catch {
-      setStatus('Restore failed.');
+      setStatus(t('restoreFailed'));
     }
   };
 
@@ -88,7 +88,7 @@ export default function SnapshotHistoryDialog({
               title="Take a manual snapshot of the current chapter"
             >
               <Camera size={12} />
-              Snapshot now
+              {t('snapshotNow')}
             </button>
             <button onClick={onClose} className="text-sm opacity-50 hover:opacity-100 ml-2">✕</button>
           </div>
@@ -96,7 +96,7 @@ export default function SnapshotHistoryDialog({
 
         <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
           {snapshots.length === 0 ? (
-            <div className="text-center text-xs opacity-50 p-8">No snapshots for this chapter yet.</div>
+            <div className="text-center text-xs opacity-50 p-8">{t('noSnapshots')}</div>
           ) : (
             snapshots.map((s) => (
               <div
@@ -112,7 +112,7 @@ export default function SnapshotHistoryDialog({
                   className="flex items-center gap-1 text-[11px] font-semibold bg-[var(--accent)] text-white hover:opacity-90 px-2.5 py-1 rounded transition-opacity"
                 >
                   <RotateCcw size={12} />
-                  Restore
+                  {t('restore')}
                 </button>
               </div>
             ))
@@ -131,7 +131,7 @@ export default function SnapshotHistoryDialog({
             onClick={onClose}
             className="px-4 py-2 text-xs font-semibold rounded-md bg-[var(--border)] text-[var(--foreground)] hover:opacity-85 transition-opacity"
           >
-            Close
+            {t('close')}
           </button>
         </div>
       </div>
@@ -139,8 +139,8 @@ export default function SnapshotHistoryDialog({
       {/* Restore confirmation — replaces the current chapter contents */}
       <ConfirmDialog
         isOpen={confirmRestoreId !== null}
-        title="Restore this snapshot?"
-        message="This will replace the current chapter content with the snapshot. A pre-restore snapshot of the current text will be taken first, so you can roll back."
+        title={t('restoreSnapshotTitle')}
+        message={t('restoreSnapshotMsg')}
         onConfirm={() => confirmRestoreId && performRestore(confirmRestoreId)}
         onCancel={() => setConfirmRestoreId(null)}
       />

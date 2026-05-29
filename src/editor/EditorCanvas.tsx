@@ -1,13 +1,18 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
 import { useTranslation } from '../i18n/useTranslation';
-import { TypographySettings } from '../storage/schemas';
+import { TypographySettings, Character, Location } from '../storage/schemas';
 import FormatToolbar from './FormatToolbar';
+import { SearchAndReplace } from './SearchAndReplace';
+import FindBar from './FindBar';
+import { TextSelection } from '@tiptap/pm/state';
+import { BibleLinkage } from './bibleLinkage';
 
 interface EditorCanvasProps {
   chapterId: string;
+  chapterIndex: number;
   initialTitle: string;
   initialMarkdown: string;
   typography: TypographySettings;
@@ -21,6 +26,12 @@ interface EditorCanvasProps {
   onTitleChange: (newTitle: string) => void;
   isDistractionFree: boolean;
   onToggleDistractionFree: () => void;
+  jumpToSearchQuery?: string | null;
+  onClearJumpToSearchQuery?: () => void;
+  characters?: Character[];
+  locations?: Location[];
+  highlightBibleRefs?: boolean;
+  onAttachEvidence?: (entityType: 'characters' | 'locations', entityId: string, quote: string) => void;
 }
 
 // Manuscript-page math: 250 words/page (double-spaced standard), 200 wpm reading pace.
@@ -38,6 +49,7 @@ const formatReadTime = (minutes: number) => {
 
 export default function EditorCanvas({
   chapterId,
+  chapterIndex,
   initialTitle,
   initialMarkdown,
   typography,
@@ -48,11 +60,62 @@ export default function EditorCanvas({
   onTitleChange,
   isDistractionFree,
   onToggleDistractionFree,
+  jumpToSearchQuery,
+  onClearJumpToSearchQuery,
+  characters = [],
+  locations = [],
+  highlightBibleRefs = true,
+  onAttachEvidence,
 }: EditorCanvasProps) {
   const { t } = useTranslation();
   const [title, setTitle] = useState(initialTitle);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'unsaved'>('idle');
   const [wordCount, setWordCount] = useState(0);
+
+  const [isFindBarOpen, setIsFindBarOpen] = useState(false);
+  // Whether the FindBar should open with the Replace row already visible.
+  // True when summoned by Cmd/Ctrl+Alt+F per plan §16.
+  const [findBarOpensInReplaceMode, setFindBarOpensInReplaceMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [replaceQuery, setReplaceQuery] = useState('');
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [wholeWord, setWholeWord] = useState(false);
+  const [matchCount, setMatchCount] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  const [isEvidenceDialogOpen, setIsEvidenceDialogOpen] = useState(false);
+  const [selectedEvidenceText, setSelectedEvidenceText] = useState('');
+  const [pickerSearchQuery, setPickerSearchQuery] = useState('');
+  
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const onAttachEvidenceRef = useRef(onAttachEvidence);
+  useEffect(() => { onAttachEvidenceRef.current = onAttachEvidence; }, [onAttachEvidence]);
+
+  const handleConfirmAttach = (type: 'characters' | 'locations', id: string) => {
+    if (onAttachEvidenceRef.current && selectedEvidenceText.trim()) {
+      onAttachEvidenceRef.current(type, id, selectedEvidenceText.trim());
+      const name = type === 'characters'
+        ? (characters || []).find(c => c.id === id)?.name
+        : (locations || []).find(l => l.id === id)?.name;
+      showToast(`Attached to ${name || 'item'} successfully!`);
+    }
+  };
+
+  useEffect(() => {
+    if (!isEvidenceDialogOpen) {
+      setPickerSearchQuery('');
+    }
+  }, [isEvidenceDialogOpen]);
 
   const [showShortcuts, setShowShortcuts] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -217,6 +280,18 @@ export default function EditorCanvas({
     .ProseMirror li { line-height: ${lineHeightValue} !important; }
     ${paragraphCSS}
     ${sceneDividerCSS}
+
+    /* Search highlight styling */
+    .search-match {
+      background-color: rgba(250, 204, 21, 0.35) !important;
+      border-bottom: 1px dashed rgba(217, 119, 6, 0.4);
+    }
+    .search-match-active {
+      background-color: rgba(245, 158, 11, 0.8) !important;
+      color: #000000 !important;
+      outline: 1px solid #d97706;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
   `;
 
   // 2. Initialize useEditor ONCE. Deps are [] — the editor instance is
@@ -232,12 +307,38 @@ export default function EditorCanvas({
         html: false,
         linkify: false,
       }),
+      SearchAndReplace.configure({
+        onResults: ({ count, index }) => {
+          setMatchCount(count);
+          setActiveIndex(index);
+        },
+      }),
+      BibleLinkage.configure({
+        characters: characters || [],
+        locations: locations || [],
+        enabled: !!highlightBibleRefs,
+      }),
     ],
     content: initialMarkdown,
     editorProps: {
       attributes: {
         class: 'focus:outline-none min-h-[50vh]',
       },
+      handleDOMEvents: {
+        contextmenu: (view, event) => {
+          const { state } = view;
+          const { from, to } = state.selection;
+          const text = state.doc.textBetween(from, to, ' ').trim();
+          if (text) {
+            event.preventDefault();
+            setSelectedEvidenceText(text);
+            setContextMenuPosition({ x: event.clientX, y: event.clientY });
+            setIsContextMenuOpen(true);
+            return true;
+          }
+          return false;
+        }
+      }
     },
     onUpdate: ({ editor }) => {
       if (isUpdatingFromPropRef.current) return;
@@ -264,7 +365,7 @@ export default function EditorCanvas({
           setTitle(parsedTitle);
           onTitleChangeRef.current?.(parsedTitle);
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
 
@@ -287,6 +388,15 @@ export default function EditorCanvas({
       }, 700);
     },
   }, []);
+
+  // Find-bar close handler — depends on the editor instance.
+  const handleCloseFindBar = useCallback(() => {
+    setIsFindBarOpen(false);
+    setSearchQuery('');
+    if (editor && !editor.isDestroyed) {
+      editor.commands.setSearchQuery('');
+    }
+  }, [editor]);
 
   // Sync title input with initialTitle prop
   useEffect(() => {
@@ -399,34 +509,155 @@ export default function EditorCanvas({
         e.preventDefault();
         onToggleDistractionFree();
       }
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        // Cmd/Ctrl+Alt+F → open directly into Replace mode (plan §16).
+        // Cmd/Ctrl+F → open in plain Find mode.
+        setFindBarOpensInReplaceMode(e.altKey);
+        setIsFindBarOpen(true);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        if (editor && !editor.isDestroyed) {
+          const { from, to } = editor.state.selection;
+          const text = editor.state.doc.textBetween(from, to, ' ').trim();
+          if (text) {
+            setSelectedEvidenceText(text);
+            setIsEvidenceDialogOpen(true);
+          } else {
+            alert("Please select some text in the editor first to attach as evidence.");
+          }
+        }
+      }
+      if (e.key === 'Escape') {
+        if (isFindBarOpen) {
+          e.preventDefault();
+          handleCloseFindBar();
+        }
+        if (isEvidenceDialogOpen) {
+          e.preventDefault();
+          setIsEvidenceDialogOpen(false);
+        }
+        if (isContextMenuOpen) {
+          e.preventDefault();
+          setIsContextMenuOpen(false);
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editor, wordCount, onToggleDistractionFree]);
+  }, [editor, wordCount, onToggleDistractionFree, isFindBarOpen, isEvidenceDialogOpen, isContextMenuOpen, handleCloseFindBar]);
+
+  // Sync BibleLinkage extension state with updates to characters, locations, and settings
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      editor.commands.updateBibleLinkage({
+        characters: characters || [],
+        locations: locations || [],
+        enabled: !!highlightBibleRefs,
+      });
+    }
+  }, [editor, characters, locations, highlightBibleRefs]);
+
+  // Dismiss context menu on click outside
+  useEffect(() => {
+    if (!isContextMenuOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setIsContextMenuOpen(false);
+      }
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, [isContextMenuOpen]);
+
+  // Dismiss context menu on scroll
+  useEffect(() => {
+    if (!isContextMenuOpen) return;
+    const handleScroll = () => setIsContextMenuOpen(false);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [isContextMenuOpen]);
+
+  // Sync Search state with Tiptap
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      editor.commands.setSearchQuery(searchQuery);
+    }
+  }, [editor, searchQuery]);
+
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      editor.commands.setCaseSensitive(caseSensitive);
+    }
+  }, [editor, caseSensitive]);
+
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      editor.commands.setWholeWord(wholeWord);
+    }
+  }, [editor, wholeWord]);
+
+  // Handle jumpToSearchQuery from command palette snippet jumps
+  useEffect(() => {
+    if (editor && !editor.isDestroyed && jumpToSearchQuery) {
+      const doc = editor.state.doc;
+      const matches: { start: number; end: number }[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      doc.descendants((node: any, pos: number) => {
+        if (node.isText) {
+          const text = node.text || '';
+          const matchIdx = text.toLowerCase().indexOf(jumpToSearchQuery.toLowerCase());
+          if (matchIdx !== -1) {
+            matches.push({
+              start: pos + matchIdx,
+              end: pos + matchIdx + jumpToSearchQuery.length,
+            });
+          }
+        }
+      });
+
+      if (matches.length > 0) {
+        const firstMatch = matches[0];
+        editor.commands.command(({ tr, state }) => {
+          tr.setSelection(TextSelection.create(state.doc, firstMatch.start, firstMatch.end));
+          tr.scrollIntoView();
+          return true;
+        });
+      }
+      onClearJumpToSearchQuery?.();
+    }
+  }, [editor, jumpToSearchQuery, onClearJumpToSearchQuery]);
 
   return (
     <div className="flex flex-col h-full bg-[var(--editor-bg)]" onBlur={handleBlur}>
       {/* Editor Header Details */}
       {!isDistractionFree && (
         <div className="h-[53px] px-6 border-b border-[var(--border)] flex items-center justify-between select-none">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => handleTitleChange(e.target.value)}
-            className="text-lg font-semibold bg-transparent border-none focus:outline-none text-[var(--foreground)] w-2/3 truncate"
-            placeholder={t('renameChapter')}
-          />
+          <div className="flex items-center gap-2 w-2/3 min-w-0">
+            <span className="text-xs font-semibold text-[var(--foreground)] opacity-45 shrink-0 select-none font-mono">
+              Ch.{chapterIndex}
+            </span>
+            <span className="text-[var(--foreground)] opacity-30 select-none">·</span>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              className="text-lg font-semibold bg-transparent border-none focus:outline-none text-[var(--foreground)] flex-1 min-w-0 truncate"
+              placeholder={t('renameChapter')}
+            />
+          </div>
           <div className="flex items-center gap-3 text-xs opacity-75 text-[var(--foreground)]">
             <span className="font-mono">
               {wordCount.toLocaleString()} {t('wordCount')}
             </span>
             <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
             <span className="font-mono">
-              {computePages(wordCount)} {computePages(wordCount) === 1 ? 'page' : 'pages'}
+              {computePages(wordCount)} {computePages(wordCount) === 1 ? t('page') : t('pages')}
             </span>
             <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
             <span className="font-mono">
-              {formatReadTime(computeReadMinutes(wordCount))} read
+              {formatReadTime(computeReadMinutes(wordCount))} {t('read')}
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--border)]" />
             <span className="italic">
@@ -453,16 +684,38 @@ export default function EditorCanvas({
         />
       )}
 
+      {/* Floating Find & Replace Bar */}
+      {isFindBarOpen && (
+        <FindBar
+          searchQuery={searchQuery}
+          onChangeSearchQuery={setSearchQuery}
+          replaceQuery={replaceQuery}
+          onChangeReplaceQuery={setReplaceQuery}
+          caseSensitive={caseSensitive}
+          onToggleCaseSensitive={() => setCaseSensitive(!caseSensitive)}
+          wholeWord={wholeWord}
+          onToggleWholeWord={() => setWholeWord(!wholeWord)}
+          matchCount={matchCount}
+          activeIndex={activeIndex}
+          onNext={() => editor?.commands.goToNextMatch()}
+          onPrev={() => editor?.commands.goToPrevMatch()}
+          onReplace={() => editor?.commands.replaceSingle(replaceQuery)}
+          onReplaceAll={() => editor?.commands.replaceAll(replaceQuery)}
+          onClose={handleCloseFindBar}
+          initialReplaceOpen={findBarOpensInReplaceMode}
+        />
+      )}
+
       {/* Distraction Free Canvas Indicators */}
       {isDistractionFree && (
         <div className="fixed top-4 right-4 flex items-center gap-3 text-xs opacity-40 hover:opacity-100 transition-opacity select-none z-50">
-          <span className="font-mono">{wordCount.toLocaleString()} words</span>
+          <span className="font-mono">{wordCount.toLocaleString()} {t('words')}</span>
           <span>•</span>
-          <span className="font-mono">{computePages(wordCount)} pages</span>
+          <span className="font-mono">{computePages(wordCount)} {computePages(wordCount) === 1 ? t('page') : t('pages')}</span>
           <span>•</span>
-          <span className="font-mono">{formatReadTime(computeReadMinutes(wordCount))} read</span>
+          <span className="font-mono">{formatReadTime(computeReadMinutes(wordCount))} {t('read')}</span>
           <span>•</span>
-          <span>{saveStatus === 'saved' ? 'Saved' : 'Saving...'}</span>
+          <span>{saveStatus === 'saved' ? t('saveStatusSaved') : t('saveStatusSaving')}</span>
           <span>•</span>
           <button
             onClick={onToggleDistractionFree}
@@ -474,7 +727,7 @@ export default function EditorCanvas({
       )}
 
       {/* Writing Prose Canvas */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-12">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-12">
         {/* Scoped, dynamic typography styles — only affect the novel text */}
         <style dangerouslySetInnerHTML={{ __html: dynamicEditorStyles }} />
         <div
@@ -515,6 +768,9 @@ export default function EditorCanvas({
                 <span className="flex items-center gap-1 font-mono">
                   <kbd className="px-1.5 py-0.5 rounded bg-[var(--border)] text-[10px]">{modKey} + {shiftKey} + F</kbd> Focus Mode
                 </span>
+                <span className="flex items-center gap-1 font-mono">
+                  <kbd className="px-1.5 py-0.5 rounded bg-[var(--border)] text-[10px]">{modKey} + {shiftKey} + E</kbd> Evidence
+                </span>
               </div>
               <button
                 onClick={toggleShortcuts}
@@ -534,6 +790,160 @@ export default function EditorCanvas({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Floating Context Menu */}
+      {isContextMenuOpen && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-50 bg-[var(--editor-bg)] border border-[var(--border)] shadow-md text-xs py-1 min-w-[200px] rounded-none text-[var(--foreground)]"
+          style={{ top: contextMenuPosition.y, left: contextMenuPosition.x }}
+        >
+          <div className="px-3 py-1.5 font-semibold border-b border-[var(--border)] opacity-60">
+            Attach as Evidence to
+          </div>
+          <div className="max-h-[200px] overflow-y-auto py-1">
+            {(characters || []).length === 0 && (locations || []).length === 0 && (
+              <div className="px-3 py-2 text-xs opacity-50 italic">
+                No bible items yet
+              </div>
+            )}
+            
+            {(characters || []).length > 0 && (
+              <>
+                <div className="px-3 py-1 font-semibold opacity-40 uppercase tracking-wider text-[9px] mt-1">Characters</div>
+                {(characters || []).map(char => (
+                  <button
+                    key={char.id}
+                    onClick={() => {
+                      handleConfirmAttach('characters', char.id);
+                      setIsContextMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-1.5 hover:bg-[var(--border)] hover:text-[var(--foreground)] cursor-pointer truncate"
+                  >
+                    {char.name}
+                  </button>
+                ))}
+              </>
+            )}
+
+            {(locations || []).length > 0 && (
+              <>
+                <div className="px-3 py-1 font-semibold opacity-40 uppercase tracking-wider text-[9px] mt-2">Locations</div>
+                {(locations || []).map(loc => (
+                  <button
+                    key={loc.id}
+                    onClick={() => {
+                      handleConfirmAttach('locations', loc.id);
+                      setIsContextMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-1.5 hover:bg-[var(--border)] hover:text-[var(--foreground)] cursor-pointer truncate"
+                  >
+                    {loc.name}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Centered Picker Modal */}
+      {isEvidenceDialogOpen && (() => {
+        const allBibleItems = [
+          ...(characters || []).map(c => ({
+            id: c.id,
+            name: c.name,
+            type: 'characters' as const,
+            subtitle: c.role || '',
+          })),
+          ...(locations || []).map(l => ({
+            id: l.id,
+            name: l.name,
+            type: 'locations' as const,
+            subtitle: l.significance || '',
+          }))
+        ];
+        const filteredItems = allBibleItems.filter(item => 
+          item.name.toLowerCase().includes(pickerSearchQuery.toLowerCase()) ||
+          item.subtitle.toLowerCase().includes(pickerSearchQuery.toLowerCase())
+        );
+
+        return (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 select-none">
+            <div className="bg-[var(--editor-bg)] border border-[var(--border)] shadow-xl w-full max-w-md p-6 rounded-none flex flex-col text-[var(--foreground)] animate-fade-in">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
+                <h3 className="text-sm font-bold uppercase tracking-wider">Attach Selection as Evidence</h3>
+                <button
+                  onClick={() => setIsEvidenceDialogOpen(false)}
+                  className="text-xs opacity-50 hover:opacity-100 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Selected Quote Preview */}
+              <div className="my-4 p-3 bg-[var(--sidebar-bg)] border-l-2 border-[var(--accent)] text-xs italic opacity-90 max-h-[80px] overflow-y-auto">
+                &ldquo;{selectedEvidenceText}&rdquo;
+              </div>
+
+              {/* Search Input for Bible items */}
+              <input
+                type="text"
+                placeholder="Filter characters or locations..."
+                value={pickerSearchQuery}
+                onChange={(e) => setPickerSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--editor-bg)] border border-[var(--border)] focus:outline-none text-xs rounded-none mb-3"
+                autoFocus
+              />
+
+              {/* List of items */}
+              <div className="flex-1 overflow-y-auto max-h-[240px] border border-[var(--border)]">
+                {filteredItems.length === 0 ? (
+                  <div className="p-4 text-center text-xs opacity-50 italic">
+                    No matching items found
+                  </div>
+                ) : (
+                  filteredItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        handleConfirmAttach(item.type, item.id);
+                        setIsEvidenceDialogOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 hover:bg-[var(--border)] border-b border-[var(--border)] last:border-b-0 cursor-pointer flex flex-col gap-0.5"
+                    >
+                      <span className="text-xs font-semibold text-[var(--foreground)]">{item.name}</span>
+                      <span className="text-[10px] opacity-60 flex items-center gap-2">
+                        <span className="uppercase tracking-wider font-bold text-[8px]">
+                          {item.type === 'characters' ? 'Character' : 'Location'}
+                        </span>
+                        {item.subtitle && <span>• {item.subtitle}</span>}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-[var(--border)]">
+                <button
+                  onClick={() => setIsEvidenceDialogOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold hover:bg-[var(--sidebar-bg)] cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Success Toast */}
+      {toast && (
+        <div className="fixed bottom-12 right-6 bg-[var(--accent)] text-white px-4 py-2 text-xs font-semibold shadow-lg z-50 rounded-none border border-[var(--border)]">
+          {toast}
         </div>
       )}
     </div>

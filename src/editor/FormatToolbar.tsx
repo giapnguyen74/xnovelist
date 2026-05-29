@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { TypographySettings } from '../storage/schemas';
 import { Editor } from '@tiptap/react';
+import { useTranslation } from '../i18n/useTranslation';
 
 interface FormatToolbarProps {
   editor: Editor | null;
@@ -37,6 +38,7 @@ export default function FormatToolbar({
 }: FormatToolbarProps) {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
 
   // Close popover when clicking outside
   useEffect(() => {
@@ -229,7 +231,7 @@ export default function FormatToolbar({
           title="Typography Settings"
         >
           <Palette size={14} />
-          <span>Typography</span>
+          <span>{t('typographyBtn')}</span>
         </button>
 
         <span className="w-px h-6 bg-[var(--border)]" />
@@ -253,13 +255,13 @@ export default function FormatToolbar({
           className="absolute right-2 top-12 z-50 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded-none shadow-xl p-5 w-[26rem] md:w-[28rem] space-y-4 animate-fade-in select-none text-[var(--foreground)]"
         >
           <div className="text-[10px] font-extrabold uppercase tracking-widest opacity-60 border-b border-[var(--border)] pb-2 mb-3">
-            Typography Settings
+            {t('typographySettings')}
           </div>
 
           <div className="grid grid-cols-2 gap-5">
             {/* Font Family selector */}
             <div className="col-span-2 space-y-1.5">
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">Font family</label>
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">{t('fontFamilyLabel')}</label>
               <select
                 value={typography.fontFamily || 'serif'}
                 onChange={(e) => onChangeTypography({ fontFamily: e.target.value })}
@@ -284,7 +286,7 @@ export default function FormatToolbar({
 
             {/* Text Size (Ab buttons) */}
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">Text size</label>
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">{t('textSizeLabel')}</label>
               <div className="flex items-center gap-2">
                 {['1', '2', '3', '4'].map((size) => {
                   const isSelected =
@@ -317,7 +319,7 @@ export default function FormatToolbar({
 
             {/* Line Height Selector */}
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">Line height</label>
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">{t('lineHeightLabel')}</label>
               <div className="flex items-center gap-2">
                 {['1', '2', '3', '4'].map((lh) => {
                   const isSelected =
@@ -340,7 +342,7 @@ export default function FormatToolbar({
 
             {/* Paragraph Spacing */}
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">Paragraph spacing</label>
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">{t('paragraphSpacingLabel')}</label>
               <div className="flex items-center gap-2">
                 {['1', '2', '3', '4'].map((sp) => {
                   const isSelected =
@@ -363,7 +365,7 @@ export default function FormatToolbar({
 
             {/* Page width constraints */}
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">Page width</label>
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">{t('pageWidthLabel')}</label>
               <div className="flex items-center gap-2">
                 {['1', '2', '3', '4'].map((w) => {
                   const isSelected =
@@ -387,7 +389,7 @@ export default function FormatToolbar({
 
             {/* First Line Indent */}
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">Text indent</label>
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">{t('textIndentLabel')}</label>
               <div className="flex items-center gap-2">
                 {['1', '2', '3', '4'].map((ind) => {
                   const isSelected =
@@ -413,13 +415,13 @@ export default function FormatToolbar({
                   onChange={(e) => onChangeTypography({ chicagoStyle: e.target.checked })}
                   className="accent-[var(--accent)] h-3.5 w-3.5 cursor-pointer rounded-none border-[var(--border)]"
                 />
-                <span>Chicago style</span>
+                <span>{t('chicagoStyle')}</span>
               </label>
             </div>
 
             {/* Text Alignment */}
             <div className="space-y-1.5 col-span-1">
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">Text alignment</label>
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">{t('textAlignmentLabel')}</label>
               <div className="flex items-center gap-2">
                 {([
                   { val: 'left', label: 'Left', Icon: AlignLeft },
@@ -446,7 +448,7 @@ export default function FormatToolbar({
 
             {/* Scene Divider Symbol */}
             <div className="space-y-1.5 col-span-1">
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">Scene divider</label>
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-65">{t('sceneDividerLabel')}</label>
               <select
                 value={typography.sceneDivider || 'asterisk'}
                 onChange={(e) => onChangeTypography({ sceneDivider: e.target.value as 'boxes' | 'stars' | 'lines' | 'asterisk' })}

@@ -221,13 +221,13 @@ export default function BibleWorkspace({
                       onClick={() => handleDeleteChar(activeChar.id)}
                       className="text-red-500 hover:text-red-700 flex items-center gap-1 text-sm font-medium"
                     >
-                      <Trash2 size={14} /> Delete
+                      <Trash2 size={14} /> {t('delete')}
                     </button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs uppercase opacity-75 mb-1">Aliases (comma separated)</label>
+                      <label className="block text-xs uppercase opacity-75 mb-1">{t('aliasesComma')}</label>
                       <input
                         type="text"
                         value={activeChar.aliases.join(', ')}
@@ -241,7 +241,7 @@ export default function BibleWorkspace({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs uppercase opacity-75 mb-1">Role / Archetype</label>
+                      <label className="block text-xs uppercase opacity-75 mb-1">{t('roleArchetype')}</label>
                       <input
                         type="text"
                         value={activeChar.role || ''}
@@ -253,7 +253,7 @@ export default function BibleWorkspace({
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase opacity-75 mb-1">Appearance Description</label>
+                    <label className="block text-xs uppercase opacity-75 mb-1">{t('appearanceDesc')}</label>
                     <textarea
                       value={activeChar.appearance || ''}
                       onChange={(e) => handleUpdateChar({ ...activeChar, appearance: e.target.value })}
@@ -264,7 +264,7 @@ export default function BibleWorkspace({
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase opacity-75 mb-1">Speech & Dialogue Habits</label>
+                    <label className="block text-xs uppercase opacity-75 mb-1">{t('speechHabits')}</label>
                     <input
                       type="text"
                       value={activeChar.speechPatterns || ''}
@@ -275,7 +275,7 @@ export default function BibleWorkspace({
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase opacity-75 mb-1">Traits, desires and fears</label>
+                    <label className="block text-xs uppercase opacity-75 mb-1">{t('traitsDesiresFears')}</label>
                     <textarea
                       value={activeChar.notes || ''}
                       onChange={(e) => handleUpdateChar({ ...activeChar, notes: e.target.value })}
@@ -345,13 +345,13 @@ export default function BibleWorkspace({
                       onClick={() => handleDeleteLoc(activeLoc.id)}
                       className="text-red-500 hover:text-red-700 flex items-center gap-1 text-sm font-medium"
                     >
-                      <Trash2 size={14} /> Delete
+                      <Trash2 size={14} /> {t('delete')}
                     </button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs uppercase opacity-75 mb-1">Aliases (comma separated)</label>
+                      <label className="block text-xs uppercase opacity-75 mb-1">{t('aliasesComma')}</label>
                       <input
                         type="text"
                         value={activeLoc.aliases.join(', ')}
@@ -365,7 +365,7 @@ export default function BibleWorkspace({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs uppercase opacity-75 mb-1">Scale</label>
+                      <label className="block text-xs uppercase opacity-75 mb-1">{t('scale')}</label>
                       <select
                         value={activeLoc.scale}
                         onChange={(e) => handleUpdateLoc({ ...activeLoc, scale: e.target.value as 'room' | 'building' | 'district' | 'city' | 'region' | 'world' })}
@@ -382,7 +382,7 @@ export default function BibleWorkspace({
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase opacity-75 mb-1">Sensory Descriptors (comma separated)</label>
+                    <label className="block text-xs uppercase opacity-75 mb-1">{t('sensoryDescriptors')}</label>
                     <input
                       type="text"
                       value={activeLoc.descriptors.join(', ')}
@@ -398,7 +398,7 @@ export default function BibleWorkspace({
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase opacity-75 mb-1">Narrative Significance & Notes</label>
+                    <label className="block text-xs uppercase opacity-75 mb-1">{t('narrativeSignificance')}</label>
                     <textarea
                       value={activeLoc.notes || ''}
                       onChange={(e) => handleUpdateLoc({ ...activeLoc, notes: e.target.value })}
@@ -422,7 +422,7 @@ export default function BibleWorkspace({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs uppercase opacity-75 mb-1">Point of view (POV)</label>
+                  <label className="block text-xs uppercase opacity-75 mb-1">{t('povLabel')}</label>
                   <select
                     value={style.narrativeRegister.pointOfView}
                     onChange={(e) =>
@@ -433,14 +433,14 @@ export default function BibleWorkspace({
                     }
                     className="w-full px-3 py-1.5 rounded-md border border-[var(--border)] bg-transparent text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--accent)]"
                   >
-                    <option value="first">First Person</option>
-                    <option value="second">Second Person</option>
-                    <option value="third-limited">Third Person Limited</option>
-                    <option value="third-omniscient">Third Person Omniscient</option>
+                    <option value="first">{t('firstPerson')}</option>
+                    <option value="second">{t('secondPerson')}</option>
+                    <option value="third-limited">{t('thirdLimited')}</option>
+                    <option value="third-omniscient">{t('thirdOmniscient')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs uppercase opacity-75 mb-1">Tense</label>
+                  <label className="block text-xs uppercase opacity-75 mb-1">{t('tenseLabel')}</label>
                   <select
                     value={style.narrativeRegister.tense}
                     onChange={(e) =>
@@ -451,14 +451,14 @@ export default function BibleWorkspace({
                     }
                     className="w-full px-3 py-1.5 rounded-md border border-[var(--border)] bg-transparent text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--accent)]"
                   >
-                    <option value="past">Past Tense</option>
-                    <option value="present">Present Tense</option>
+                    <option value="past">{t('pastTense')}</option>
+                    <option value="present">{t('presentTense')}</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs uppercase opacity-75 mb-1">Sentence / Rhythm Preferences</label>
+                <label className="block text-xs uppercase opacity-75 mb-1">{t('rhythmPrefs')}</label>
                 <input
                   type="text"
                   value={style.rhythm.avgSentenceLengthHint || ''}
@@ -474,7 +474,7 @@ export default function BibleWorkspace({
               </div>
 
               <div>
-                <label className="block text-xs uppercase opacity-75 mb-1">Vocabulary Style (Favored words)</label>
+                <label className="block text-xs uppercase opacity-75 mb-1">{t('vocabularyStyle')}</label>
                 <input
                   type="text"
                   value={style.diction.register || ''}
@@ -497,10 +497,10 @@ export default function BibleWorkspace({
             {/* Prev chapter details */}
             <div className="flex-1 border border-[var(--border)] rounded-lg p-4 bg-[var(--sidebar-bg)] flex flex-col">
               <span className="text-xs uppercase opacity-70 font-semibold mb-2">
-                Inherited from previous chapter
+                {t('inheritedFromPrev')}
               </span>
               <textarea
-                value={prevContinuity || 'No preceding chapter continuity.'}
+                value={prevContinuity || t('noPrevContinuity')}
                 readOnly
                 className="flex-1 bg-transparent text-[var(--foreground)] opacity-70 text-sm resize-none focus:outline-none leading-relaxed"
               />
@@ -509,7 +509,7 @@ export default function BibleWorkspace({
             {/* Current chapter details */}
             <div className="flex-1 border border-[var(--border)] rounded-lg p-4 flex flex-col bg-white dark:bg-[#191918]">
               <span className="text-xs uppercase opacity-70 font-semibold mb-2 text-[var(--accent)]">
-                Established by active chapter
+                {t('establishedByActive')}
               </span>
               <textarea
                 value={currentContinuity}

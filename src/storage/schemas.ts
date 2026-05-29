@@ -15,13 +15,24 @@ export const TypographySettingsSchema = z.object({
 
 export type TypographySettings = z.infer<typeof TypographySettingsSchema>;
 
+export const ChapterSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  synopsis: z.string().optional(),
+  status: z.enum(['draft', 'revised', 'final']).default('draft'),
+});
+
+export type Chapter = z.infer<typeof ChapterSchema>;
+
 export const ProjectSchema = z.object({
   schemaVersion: z.literal(1),
   id: z.string(),
   title: z.string(),
   author: z.string().default(''),
   genre: z.string().optional(),
-  pov: z.enum(['first', 'second', 'third-limited', 'third-omniscient']).default('third-limited'),
+  pov: z.enum(['first', 'second', 'third', 'third-limited', 'third-omniscient']).default('third-limited'),
   tense: z.enum(['past', 'present']).default('past'),
   language: z.string().default('en'),
   targetWordCount: z.number().int().positive().default(50000),
@@ -30,18 +41,16 @@ export const ProjectSchema = z.object({
   activeChapterId: z.string(),
   chapterOrder: z.array(z.string()),
   typography: TypographySettingsSchema,
+  series: z.string().optional(),
+  seriesIndex: z.number().int().optional(),
+  coverImage: z.string().optional(), // base64 URL
+  povCharacterId: z.string().optional(),
+  archived: z.boolean().default(false),
+  highlightBibleRefs: z.boolean().default(true),
+  chapters: z.array(ChapterSchema).default([]),
 });
 
 export type Project = z.infer<typeof ProjectSchema>;
-
-export const ChapterSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-
-export type Chapter = z.infer<typeof ChapterSchema>;
 
 export const RelationshipSchema = z.object({
   with: z.string(),

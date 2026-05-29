@@ -1,10 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useRef, useState } from 'react';
 import { Download, Upload, FileText, CheckCircle2 } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { ProjectStorage } from '../storage/ProjectStorage';
-import { Document, Packer, Paragraph, HeadingLevel } from 'docx';
+import { Document, Packer, Paragraph, HeadingLevel, ImageRun, AlignmentType } from 'docx';
 import { takeSnapshot } from '../storage/snapshots';
 import ConfirmDialog from './ConfirmDialog';
+import { Project } from '../storage/schemas';
 
 interface ExportImportDialogProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface ExportImportDialogProps {
   storage: ProjectStorage;
   chapterOrder: string[];
   chapters: { id: string; title: string }[];
+  project: Project;
 }
 
 /** Validate the parsed JSON shape before we trust it. */
@@ -37,6 +40,7 @@ export default function ExportImportDialog({
   storage,
   chapterOrder,
   chapters,
+  project,
 }: ExportImportDialogProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,7 +53,7 @@ export default function ExportImportDialog({
   // JSON Export: dumps all files inside IndexedDB
   const handleExportJSON = async () => {
     try {
-      setStatus('Exporting...');
+      setStatus(t('exportingStatus'));
       const paths = await storage.listFiles();
       const backup: Record<string, string> = {};
 
@@ -67,11 +71,11 @@ export default function ExportImportDialog({
       a.download = `xnovelist-backup-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setStatus('Backup saved!');
+      setStatus(t('backupSaved'));
       setTimeout(() => setStatus(null), 3000);
     } catch (e) {
       console.error(e);
-      setStatus('Export failed!');
+      setStatus(t('exportFailed'));
     }
   };
 
@@ -87,13 +91,13 @@ export default function ExportImportDialog({
       try {
         const data = JSON.parse(event.target?.result as string);
         if (!isValidBackup(data)) {
-          setStatus('Import failed — file does not look like an xnovelist backup.');
+          setStatus(t('importFailed'));
           return;
         }
         setPendingImport(data);
         setStatus(null);
       } catch {
-        setStatus('Import failed — invalid JSON.');
+        setStatus(t('importFailedJson'));
       }
     };
     reader.readAsText(file);
@@ -107,7 +111,7 @@ export default function ExportImportDialog({
     setPendingImport(null);
 
     try {
-      setStatus('Taking pre-import snapshots…');
+      setStatus(t('takingPreImportSnapshots'));
 
       // Walk every project currently in storage and snapshot each chapter.
       const allKeys = await storage.listFiles();
@@ -130,79 +134,210 @@ export default function ExportImportDialog({
         ).catch(() => { /* ignore individual snapshot failures */ });
       }
 
-      setStatus('Importing backup…');
+      setStatus(t('importingBackup'));
       for (const [path, content] of Object.entries(data)) {
         await storage.writeFile(path, content);
       }
 
-      setStatus('Import successful — reloading…');
+      setStatus(t('importSuccess'));
       setTimeout(() => window.location.reload(), 1200);
     } catch {
-      setStatus('Import failed during write — partial state may remain.');
+      setStatus(t('importFailedWrite'));
     }
   };
 
   // DOCX Export
   const handleExportDOCX = async () => {
     try {
-      setStatus('Compiling DOCX...');
-      const sections = [];
+      setStatus(t('compilingDocx'));
+      const prefix = `projects/${project.id}/`;
+      
+      const children: any[] = [];
 
-      for (const id of chapterOrder) {
+      // 1. Render Title Page
+      children.push(
+        new Paragraph({
+          text: '',
+          spacing: { before: 2880 }, // Spacer
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          text: project.title,
+          heading: HeadingLevel.TITLE,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 240 },
+        })
+      );
+
+      if (project.series) {
+        children.push(
+          new Paragraph({
+            text: `${project.series}${project.seriesIndex ? ` (Book ${project.seriesIndex})` : ''}`,
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 480 },
+          })
+        );
+      }
+
+      children.push(
+        new Paragraph({
+          text: `By ${project.author || 'Anonymous'}`,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 960 },
+        })
+      );
+
+      // Embedded Cover Image if set
+      if (project.coverImage) {
+        try {
+          const base64Data = project.coverImage.split(',')[1];
+          const binaryString = window.atob(base64Data);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          children.push(
+            new Paragraph({
+              children: [
+                new ImageRun({
+                  data: bytes.buffer,
+                  transformation: {
+                    width: 180,
+                    height: 240,
+                  },
+                  type: 'png',
+                } as any),
+              ],
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 480 },
+            })
+          );
+        } catch (e) {
+          console.error('Failed to parse cover image for DOCX', e);
+        }
+      }
+
+      // Page break after title page
+      children.push(
+        new Paragraph({
+          text: '',
+          pageBreakBefore: true,
+        })
+      );
+
+      // Scene divider text based on project preferences
+      const sceneDividerText = (() => {
+        switch (project.typography?.sceneDivider) {
+          case 'boxes': return '◆   ◆   ◆';
+          case 'stars': return '★   ★   ★';
+          case 'lines': return '————————————';
+          case 'asterisk':
+          default: return '*   *   *';
+        }
+      })();
+
+      const useChicago = project.typography?.chicagoStyle ?? false;
+
+      // 2. Render Chapters
+      for (let i = 0; i < chapterOrder.length; i++) {
+        const id = chapterOrder[i];
         const chapter = chapters.find((c) => c.id === id);
         if (!chapter) continue;
 
-        const content = await storage.readFile(`Artifacts/chapter-${id}.md`);
+        const content = await storage.readFile(`${prefix}Artifacts/chapter-${id}.md`);
         if (!content) continue;
 
-        // Simple Markdown cleaning for plaintext / simple paragraphs
-        const cleanContent = content
-          .replace(/#+\s+.*?\n/g, '') // strip title heading
+        // Clean markdown headings, spacing etc.
+        const lines = content
+          .replace(/#+\s+.*?\n/g, '') // strip titles
           .split('\n')
-          .map((p) => p.trim())
-          .filter(Boolean);
+          .map((p) => p.trim());
 
-        const docParagraphs = [
+        // Chapter Header Paragraph
+        children.push(
           new Paragraph({
             text: chapter.title,
             heading: HeadingLevel.HEADING_1,
-            spacing: { before: 240, after: 120 },
-          }),
-          ...cleanContent.map((pText) => new Paragraph({ text: pText, spacing: { after: 120 } })),
-          new Paragraph({ text: '', spacing: { after: 240 } }), // spacing spacer
-        ];
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 1440, after: 720 },
+            pageBreakBefore: true, // Force page break before each chapter!
+          })
+        );
 
-        sections.push({
-          properties: {},
-          children: docParagraphs,
-        });
+        let justAfterDivider = true; // First paragraph of chapter is not indented
+
+        for (const line of lines) {
+          if (!line) continue;
+
+          // Check if line is a scene divider
+          if (line === '---' || line === '***' || line === '* * *' || line === '___') {
+            children.push(
+              new Paragraph({
+                text: sceneDividerText,
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 480, after: 480 },
+              })
+            );
+            justAfterDivider = true; // Paragraph after scene divider is not indented
+          } else {
+            const isIndent = useChicago && !justAfterDivider;
+            children.push(
+              new Paragraph({
+                text: line,
+                spacing: useChicago ? { before: 0, after: 0, line: 360 } : { before: 0, after: 120, line: 240 },
+                indent: isIndent ? { firstLine: 720 } : undefined, // 720 dxa = 0.5 inches
+                alignment: AlignmentType.LEFT,
+              })
+            );
+            justAfterDivider = false;
+          }
+        }
       }
 
-      const doc = new Document({ sections });
+      const doc = new Document({
+        sections: [
+          {
+            properties: {
+              page: {
+                margin: {
+                  top: 1440,    // 1 inch
+                  bottom: 1440, // 1 inch
+                  left: 1440,   // 1 inch
+                  right: 1440,  // 1 inch
+                },
+              },
+            },
+            children,
+          },
+        ],
+      });
 
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'manuscript.docx';
+      a.download = `${project.title.replace(/\s+/g, '_')}.docx`;
       a.click();
       URL.revokeObjectURL(url);
-      setStatus('DOCX exported!');
+      setStatus(t('docxExported'));
       setTimeout(() => setStatus(null), 3000);
     } catch (e) {
       console.error(e);
-      setStatus('DOCX Compilation failed!');
+      setStatus(t('docxFailed'));
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 select-none">
-      <div className="bg-white dark:bg-[#1e1e1d] border border-[var(--border)] rounded-xl max-w-sm w-full p-6 shadow-xl space-y-5">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 select-none animate-fade-in">
+      <div className="bg-white dark:bg-[#1e1e1d] border border-[var(--border)] rounded-none max-w-sm w-full p-6 shadow-xl space-y-5">
         <div className="flex justify-between items-center border-b border-[var(--border)] pb-3">
-          <h3 className="text-base font-semibold text-[var(--foreground)]">{t('export')}</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">{t('export')}</h3>
           <button
             onClick={onClose}
-            className="text-sm opacity-50 hover:opacity-100"
+            className="text-sm opacity-50 hover:opacity-100 font-bold"
           >
             ✕
           </button>
@@ -212,22 +347,22 @@ export default function ExportImportDialog({
           {/* JSON Export */}
           <button
             onClick={handleExportJSON}
-            className="w-full flex items-center justify-between p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-sm text-[var(--foreground)] font-medium"
+            className="w-full flex items-center justify-between p-3 rounded-none border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-xs text-[var(--foreground)] font-semibold cursor-pointer bg-transparent"
           >
             <span className="flex items-center gap-2">
-              <Download size={16} className="text-[var(--accent)]" />
-              Download JSON Backup
+              <Download size={15} className="text-[var(--accent)]" />
+              {t('downloadJsonBackup')}
             </span>
           </button>
 
           {/* JSON Import */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full flex items-center justify-between p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-sm text-[var(--foreground)] font-medium"
+            className="w-full flex items-center justify-between p-3 rounded-none border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-xs text-[var(--foreground)] font-semibold cursor-pointer bg-transparent"
           >
             <span className="flex items-center gap-2">
-              <Upload size={16} className="text-[var(--accent)]" />
-              Import JSON Backup
+              <Upload size={15} className="text-[var(--accent)]" />
+              {t('importJsonBackup')}
             </span>
           </button>
           <input
@@ -241,18 +376,18 @@ export default function ExportImportDialog({
           {/* DOCX Export */}
           <button
             onClick={handleExportDOCX}
-            className="w-full flex items-center justify-between p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-sm text-[var(--foreground)] font-medium"
+            className="w-full flex items-center justify-between p-3 rounded-none border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-xs text-[var(--foreground)] font-semibold cursor-pointer bg-transparent"
           >
             <span className="flex items-center gap-2">
-              <FileText size={16} className="text-green-600" />
-              Compile to DOCX
+              <FileText size={15} className="text-green-600" />
+              {t('compileToDOCX')}
             </span>
           </button>
         </div>
 
         {status && (
-          <div className="flex items-center justify-center gap-2 text-xs text-[var(--accent)] p-2 bg-[var(--accent-light)] rounded-md">
-            <CheckCircle2 size={14} />
+          <div className="flex items-center justify-center gap-2 text-xs text-[var(--accent)] p-2 bg-[var(--accent)]/10 rounded-none border border-[var(--accent)]/20">
+            <CheckCircle2 size={13} />
             <span>{status}</span>
           </div>
         )}
@@ -260,9 +395,9 @@ export default function ExportImportDialog({
         <div className="flex justify-end pt-2 border-t border-[var(--border)]">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold rounded-md bg-[var(--border)] text-[var(--foreground)] hover:opacity-85 transition-opacity"
+            className="px-4 py-2 text-xs font-semibold rounded-none bg-[var(--border)] text-[var(--foreground)] hover:opacity-85 transition-opacity cursor-pointer"
           >
-            Close
+            {t('close')}
           </button>
         </div>
       </div>
@@ -270,8 +405,8 @@ export default function ExportImportDialog({
       {/* Replace-on-import confirmation. */}
       <ConfirmDialog
         isOpen={pendingImport !== null}
-        title="Replace current data?"
-        message={`The backup contains ${pendingImport ? Object.keys(pendingImport).length : 0} entries and will overwrite anything stored under the same paths. A pre-import snapshot of every chapter will be taken first so you can roll back. Continue?`}
+        title={t('replaceCurrentData')}
+        message={t('replaceCurrentDataMsg').replace('{count}', String(pendingImport ? Object.keys(pendingImport).length : 0))}
         onConfirm={confirmImport}
         onCancel={() => { setPendingImport(null); setStatus(null); }}
       />

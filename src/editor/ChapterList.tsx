@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit3, ArrowUp, ArrowDown, BookOpen, Search, ChevronDown, ChevronRight, Users, MapPin, Feather, Compass } from 'lucide-react';
+import { Plus, Trash2, Edit3, ArrowUp, ArrowDown, Search, ChevronDown, ChevronRight, Users, MapPin, Feather, Compass } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { Chapter, Character, Location } from '../storage/schemas';
 
@@ -98,14 +98,14 @@ export default function ChapterList({
               : 'text-[var(--foreground)] opacity-70 hover:opacity-100 hover:bg-[var(--border)]/40'
           }`}
         >
-          Story Bible
+          {t('storyBible')}
         </button>
       </div>
 
       {sidebarTab === 'outline' ? (
         <>
           <div className="px-3 py-2 border-b border-[var(--border)]/40 flex items-center justify-between flex-shrink-0 bg-[var(--sidebar-bg)]">
-            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Chapters</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('chapters')}</span>
             <button
               onClick={onCreateChapter}
               className="p-1 rounded hover:bg-[var(--border)] text-[var(--foreground)] transition-colors cursor-pointer"
@@ -149,12 +149,13 @@ export default function ChapterList({
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
-                        <span className="font-medium text-sm truncate flex-1 pr-2">
-                          {chapter.title}
+                        <span className="font-medium text-sm truncate flex-1 pr-2 flex items-center gap-1.5">
+                          <span className={`text-[10px] font-bold font-mono shrink-0 ${isActive ? 'opacity-60' : 'opacity-40'}`}>Ch.{index + 1}</span>
+                          <span className="truncate">{chapter.title}</span>
                         </span>
                       )}
 
-                      <div className="hidden group-hover:flex items-center gap-1">
+                      <div className="flex sm:hidden sm:group-hover:flex items-center gap-1">
                         {index > 0 && (
                           <button
                             onClick={(e) => handleMove(index, 'up', e)}
@@ -218,7 +219,7 @@ export default function ChapterList({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search all entries..."
+                placeholder={t('searchEntries')}
                 className="w-full bg-[var(--background)] border border-[var(--border)] rounded px-8 py-1.5 text-xs focus:outline-none focus:border-[var(--accent)] text-[var(--foreground)]"
               />
             </div>
@@ -234,10 +235,10 @@ export default function ChapterList({
               >
                 <span className="flex items-center gap-1.5">
                   <Users size={12} className="text-[var(--accent)]" />
-                  Characters
+                  {t('characters')}
                 </span>
                 <span className="flex items-center gap-1.5 text-[10px] opacity-60">
-                  {characters.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())).length} entries
+                  {characters.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())).length} {t('entries')}
                   {sectionsExpanded.characters ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 </span>
               </button>
@@ -256,7 +257,7 @@ export default function ChapterList({
                       </div>
                     ))}
                   {characters.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-                    <div className="px-6 py-2 text-[10px] opacity-40 italic">No characters found</div>
+                    <div className="px-6 py-2 text-[10px] opacity-40 italic">{t('noCharactersFound')}</div>
                   )}
                 </div>
               )}
@@ -270,10 +271,10 @@ export default function ChapterList({
               >
                 <span className="flex items-center gap-1.5">
                   <MapPin size={12} className="text-[var(--accent)]" />
-                  Locations
+                  {t('locations')}
                 </span>
                 <span className="flex items-center gap-1.5 text-[10px] opacity-60">
-                  {locations.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).length} entries
+                  {locations.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).length} {t('entries')}
                   {sectionsExpanded.locations ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 </span>
               </button>
@@ -292,7 +293,7 @@ export default function ChapterList({
                       </div>
                     ))}
                   {locations.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-                    <div className="px-6 py-2 text-[10px] opacity-40 italic">No locations found</div>
+                    <div className="px-6 py-2 text-[10px] opacity-40 italic">{t('noLocationsFound')}</div>
                   )}
                 </div>
               )}
@@ -306,16 +307,16 @@ export default function ChapterList({
               >
                 <span className="flex items-center gap-1.5">
                   <Compass size={12} className="text-[var(--accent)] opacity-80" />
-                  Objects/Items
+                  {t('objectsItems')}
                 </span>
                 <span className="flex items-center gap-1.5 text-[10px] opacity-60">
-                  0 entries
+                  0 {t('entries')}
                   {sectionsExpanded.objects ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 </span>
               </button>
               
               {sectionsExpanded.objects && (
-                <div className="px-6 py-3 text-[10px] opacity-40 italic">No objects or items defined. Add them in inhabitants or location notes.</div>
+                <div className="px-6 py-3 text-[10px] opacity-40 italic">{t('noObjectsDefined')}</div>
               )}
             </div>
 
@@ -327,16 +328,16 @@ export default function ChapterList({
               >
                 <span className="flex items-center gap-1.5">
                   <Feather size={12} className="text-[var(--accent)] opacity-80" />
-                  Others
+                  {t('others')}
                 </span>
                 <span className="flex items-center gap-1.5 text-[10px] opacity-60">
-                  0 entries
+                  0 {t('entries')}
                   {sectionsExpanded.others ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 </span>
               </button>
               
               {sectionsExpanded.others && (
-                <div className="px-6 py-3 text-[10px] opacity-40 italic">No custom categories.</div>
+                <div className="px-6 py-3 text-[10px] opacity-40 italic">{t('noCustomCategories')}</div>
               )}
             </div>
           </div>

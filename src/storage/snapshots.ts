@@ -12,7 +12,7 @@ function simpleHash(str: string): string {
   return Math.abs(hash).toString(16);
 }
 
-const RETENTION_CAP = 30; // Max 30 interval/manual snapshots per chapter
+const RETENTION_CAP = 50; // Strict FIFO limit of 50 snapshots per chapter
 
 export async function takeSnapshot(
   storage: ProjectStorage,
@@ -67,13 +67,10 @@ export async function takeSnapshot(
     contentHash,
   });
 
-  // Snapshot pruning: cap the number of snapshots.
-  // Pre-restore and pre-import are exempt from auto-pruning.
-  // Only manual and interval are pruned.
-  const prunables = indexData.snapshots.filter(s => s.type === 'manual' || s.type === 'interval');
-  if (prunables.length > RETENTION_CAP) {
-    const overflowCount = prunables.length - RETENTION_CAP;
-    const toPrune = prunables.slice(0, overflowCount);
+  // Strict uniform FIFO pruning: cap the number of snapshots to 50 across ALL types.
+  if (indexData.snapshots.length > RETENTION_CAP) {
+    const overflowCount = indexData.snapshots.length - RETENTION_CAP;
+    const toPrune = indexData.snapshots.slice(0, overflowCount);
     
     // Filter index snapshots list
     const keepList = [];
