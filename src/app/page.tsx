@@ -620,7 +620,7 @@ export default function WorkspacePage() {
           {/* Dashboard Header */}
           <div className="flex justify-between items-center pb-6 border-b border-[var(--border)]">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="logo" className="h-10 w-10 object-contain" />
+              <img src="logo.png" alt="logo" className="h-10 w-10 object-contain" />
               <div>
                 <h1 className="text-2xl font-bold tracking-wider">XNOVELIST</h1>
                 <p className="text-xs opacity-70">A local-first, distraction-free writing desk</p>
@@ -662,7 +662,7 @@ export default function WorkspacePage() {
                   {/* Book Cover Placeholder */}
                   <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden border border-[var(--border)] shadow-sm bg-[#fbfbfa]">
                     {/* Default cover image background */}
-                    <img src="/cover1.svg" alt="Cover" className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform" />
+                    <img src="cover1.svg" alt="Cover" className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform" />
                   </div>
 
                   {/* Metadata under cover */}
