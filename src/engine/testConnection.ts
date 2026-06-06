@@ -1,4 +1,4 @@
-import { ProviderId } from '../storage/aiConfig';
+import { ProviderId, OpenAIProviderConfig, AnthropicProviderConfig, OpenRouterProviderConfig, LocalAIProviderConfig } from '../storage/aiConfig';
 
 export interface TestResult {
   ok: boolean;
@@ -32,7 +32,7 @@ const TEST_USER_PROMPT = 'ping';
  */
 export async function testConnection(
   providerId: ProviderId,
-  config: any,
+  config: OpenAIProviderConfig | AnthropicProviderConfig | OpenRouterProviderConfig | LocalAIProviderConfig,
   overrides?: TestOverrides
 ): Promise<TestResult> {
   const userPrompt = overrides?.userPrompt?.trim() || TEST_USER_PROMPT;
@@ -43,18 +43,19 @@ export async function testConnection(
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    let body: any = {};
+    let body: Record<string, unknown> = {};
     let modelId = '';
 
     // 1. Prepare Request details based on the selected provider
     if (providerId === 'openai') {
+      const c = config as OpenAIProviderConfig;
       endpoint = 'https://api.openai.com/v1/chat/completions';
-      modelId = overrides?.modelId || config.defaultModel || 'gpt-4o-mini';
+      modelId = overrides?.modelId || c.defaultModel || 'gpt-4o-mini';
 
-      if (!config.apiKey) {
+      if (!c.apiKey) {
         return { ok: false, error: 'Authentication failed. Re-paste your key.' };
       }
-      headers['Authorization'] = `Bearer ${config.apiKey}`;
+      headers['Authorization'] = `Bearer ${c.apiKey}`;
 
       body = {
         model: modelId,
@@ -66,14 +67,15 @@ export async function testConnection(
         max_tokens: overrides?.maxTokens || (overrides?.userPrompt ? 4096 : 1024),
       };
     } else if (providerId === 'anthropic') {
+      const c = config as AnthropicProviderConfig;
       endpoint = 'https://api.anthropic.com/v1/messages';
-      modelId = overrides?.modelId || config.defaultModel || 'claude-3-5-haiku-20241022';
+      modelId = overrides?.modelId || c.defaultModel || 'claude-3-5-haiku-20241022';
 
       headers['anthropic-version'] = '2023-06-01';
-      if (!config.apiKey) {
+      if (!c.apiKey) {
         return { ok: false, error: 'Authentication failed. Re-paste your key.' };
       }
-      headers['x-api-key'] = config.apiKey;
+      headers['x-api-key'] = c.apiKey;
 
       body = {
         model: modelId,
@@ -85,13 +87,14 @@ export async function testConnection(
         max_tokens: overrides?.maxTokens || (overrides?.userPrompt ? 4096 : 1024),
       };
     } else if (providerId === 'openrouter') {
+      const c = config as OpenRouterProviderConfig;
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      modelId = overrides?.modelId || config.defaultModel || 'google/gemini-2.5-flash';
+      modelId = overrides?.modelId || c.defaultModel || 'google/gemini-2.5-flash';
 
-      if (!config.apiKey) {
+      if (!c.apiKey) {
         return { ok: false, error: 'Authentication failed. Sign in again or re-paste your key.' };
       }
-      headers['Authorization'] = `Bearer ${config.apiKey}`;
+      headers['Authorization'] = `Bearer ${c.apiKey}`;
       headers['HTTP-Referer'] = 'https://xnovelist.app'; // Nice-to-have for OpenRouter rankings
       headers['X-Title'] = 'xnovelist';
 
@@ -105,7 +108,8 @@ export async function testConnection(
         max_tokens: overrides?.maxTokens || (overrides?.userPrompt ? 4096 : 1024),
       };
     } else if (providerId === 'local') {
-      let baseUrl = (config.baseUrl || '').trim();
+      const c = config as LocalAIProviderConfig;
+      let baseUrl = (c.baseUrl || '').trim();
       if (!baseUrl) {
         return { ok: false, error: 'Base URL is empty.' };
       }
@@ -114,15 +118,15 @@ export async function testConnection(
         baseUrl = baseUrl.slice(0, -1);
       }
       endpoint = `${baseUrl}/chat/completions`;
-      modelId = overrides?.modelId || config.defaultModel || '';
+      modelId = overrides?.modelId || c.defaultModel || '';
 
-      if (config.apiKey) {
-        headers['Authorization'] = `Bearer ${config.apiKey}`;
+      if (c.apiKey) {
+        headers['Authorization'] = `Bearer ${c.apiKey}`;
       }
 
       // Add custom headers if specified
-      if (config.headers && typeof config.headers === 'object') {
-        Object.entries(config.headers).forEach(([k, v]) => {
+      if (c.headers && typeof c.headers === 'object') {
+        Object.entries(c.headers).forEach(([k, v]) => {
           headers[k] = String(v);
         });
       }
@@ -205,8 +209,8 @@ export async function testConnection(
       promptSent: userPrompt,
       reply,
     };
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
       return { ok: false, error: 'Connection timed out after 60 seconds. Check the base URL and network.' };
     }
     return {

@@ -12,7 +12,6 @@ interface ChapterListProps {
   onCreateChapter: () => void;
 
   onDeleteChapter: (id: string) => void;
-  onReorderChapters: (newOrder: string[]) => void;
   
   // Story Bible props for quick navigation
   characters?: Character[];
@@ -28,7 +27,6 @@ export default function ChapterList({
   onSelectChapter,
   onCreateChapter,
   onDeleteChapter,
-  onReorderChapters,
   characters = [],
   locations = [],
   onSelectBibleItem,

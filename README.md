@@ -36,9 +36,10 @@ This repo's planning, decisions, and concept documents live under `docs/`. Read 
 4. [`docs/STORAGE.md`](docs/STORAGE.md) — IndexedDB, schemas, migration, export
 5. [`docs/EDITOR.md`](docs/EDITOR.md) — the writing experience without AI; desktop/tablet/phone layouts
 6. [`docs/STORY_BIBLE.md`](docs/STORY_BIBLE.md) — characters, locations, style, continuity; prose-language vs UI-language
-7. [`docs/AI.md`](docs/AI.md) — the AI tool sets per phase, BYOAI endpoint matrix, multilingual prompt packs
-8. [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestones and gates
-9. [`docs/NON_GOALS.md`](docs/NON_GOALS.md) — explicit cuts, including the no-proxy commitment
+7. [`docs/AI.md`](docs/AI.md) — the general AI design: master toggle, the level model, BYOAI endpoint matrix, tool-set doctrine, prompt architecture, guardrails, privacy
+8. [`docs/AI_LEVELS.md`](docs/AI_LEVELS.md) — the per-level tool catalogue: which tools a writer gets at AI levels 0–5, with contracts, prompts, and commit paths
+9. [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestones and gates
+10. [`docs/NON_GOALS.md`](docs/NON_GOALS.md) — explicit cuts, including the no-proxy commitment
 
 Every document is structured to stand alone. If you only have time to read one, read `AI.md` — it captures the most distinctive design decisions in the project.
 

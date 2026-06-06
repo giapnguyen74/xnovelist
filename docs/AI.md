@@ -1,21 +1,37 @@
 # AI
 
-This document specifies how AI works in xnovelist. The framing throughout: AI is **optional**, **named**, **scoped**, and **previewed**. Every AI behaviour is enumerated. Nothing emerges; nothing is hidden.
+This document specifies the **general AI design** of xnovelist: the philosophy, the master controls, the endpoint model, the doctrine every tool obeys, the prompt architecture, the guardrails, the failure model, and the privacy posture. It is the cross-cutting layer that holds true regardless of which tools are enabled.
 
-## The master toggle
+For the **per-level tool detail** — exactly which tools a writer gets at each AI level, what each consumes and produces, and how each result is reviewed and committed — see [`AI_LEVELS.md`](AI_LEVELS.md). The split is deliberate: this document is the design; `AI_LEVELS.md` is the catalogue.
 
-Settings has a single switch labelled "Enable AI features." It is **off by default** on a fresh install. With it off:
+The framing throughout: AI is **optional**, **named**, **scoped**, and **previewed**. Every AI behaviour is enumerated. Nothing emerges; nothing is hidden.
 
-- The Polish panel is hidden.
-- The Story Bible capture affordances are hidden.
-- The Capture Style button on the Style tab is hidden.
-- Phase 2 beat insertion (when phase 2 ships) is hidden.
-- Phase 3 scene drafting (when phase 3 ships) is hidden.
-- No outbound network request to any LLM endpoint is ever made.
+**The LLM is a stateless proposer; the harness disposes.** The model is a pure function — a prompt in, structured JSON out. It never executes a side effect and never holds the control flow. Every side effect, every sequencing decision, and every multi-step run is deterministic harness code. xnovelist does **not** use provider function-calling or a tool-execution loop at any level: a single-user, local, deterministic app already knows its steps, and JSON proposals work on every BYOAI model (including local ones) where tool-calling does not. The AI surface is a single **Agent panel** — a composer plus a scrollable transcript of proposed *write-ops* the writer accepts or rejects. See [`../works/05-action.md`](../works/05-action.md) for the panel, the action → proposal → write-op pipeline, and the engine shape.
 
-With it on, the user must also configure a BYOAI endpoint (base URL + model + optional API key) before any AI action is available. Until the endpoint is configured, the AI surfaces are visible but disabled with a "Configure your model in Settings" prompt.
+## The master toggle and the level
 
-The toggle is enforced at a single seam: the `runTool({ tool, args })` dispatcher in `src/ai/runTool.ts` checks the toggle synchronously and throws `AIDisabledError` if AI is off. No tool can be invoked through any other path. This is auditable in CI by a lint rule that bans direct imports of any file under `src/ai/llm/` outside of `src/ai/`.
+AI in xnovelist is governed by two settings that compose:
+
+1. **Enable AI features** — a single switch, **off by default** on a fresh install. Off means: every AI surface is hidden, and no outbound network request to any LLM endpoint is ever made. Off is equivalent to **Level 0** (see `AI_LEVELS.md`).
+
+2. **The AI level** — once AI is enabled, the workspace sits at a level from `1` to `5`. The level is a ceiling on how far the AI may reach into the writer's prose, and it decides which tools are visible. **A tool appears only if its level is `<=` the workspace level.** Lowering the level immediately hides higher-level surfaces and stops making calls at those levels.
+
+With AI enabled, the writer must also configure a BYOAI endpoint (base URL + model + optional API key) before any AI action is available. Until the endpoint is configured, the AI surfaces are visible but disabled with a "Configure your model in Settings" prompt.
+
+Both controls are enforced at a single seam: the `runTool({ tool, args })` dispatcher in `src/ai/runTool.ts`. It checks, synchronously, that AI is enabled (else throws `AIDisabledError`) and that the tool's level is `<=` the workspace level (else throws `AILevelError`). No tool can be invoked through any other path. This is auditable in CI by a lint rule that bans direct imports of any file under `src/ai/llm/` outside of `src/ai/`.
+
+## The level model
+
+xnovelist phases AI in along one axis: **how far the AI reaches into your prose.** Six levels, `0–5`, each a superset of the one below.
+
+- **L0 Off** — no AI.
+- **L1 Reader** — the AI reads your book (analysis & capture); it never writes prose.
+- **L2 Editor** — the AI edits words you already wrote and highlighted; it never originates a sentence.
+- **L3 Co-writer** — the AI writes a passage inside a beat slot you outlined.
+- **L4 Drafter** — the AI drafts a scene you described.
+- **L5 Agent** — the AI works across the whole manuscript under bounded, audit-logged orchestration.
+
+The meaningful consent line is **L2 → L3**: at L2 and below every word the AI touches was the writer's word first; at L3 and above the AI generates new prose. The level is chosen by the writer to match the help they want, and can change at any time — it is a ceiling, not a graduation earned over time. Full per-level tool sets, contracts, and commit paths live in [`AI_LEVELS.md`](AI_LEVELS.md).
 
 ## Endpoints: BYOAI, direct, no proxy
 
@@ -38,114 +54,15 @@ The application speaks one wire format: OpenAI Chat Completions. Every supported
 
 **Settings carries multiple endpoint profiles.** A user can save one configuration named "OpenAI personal," another named "Ollama local," and switch between them per project (or per session) without re-entering credentials. Profile switching is local; no profile metadata leaves the device.
 
-## The trust ladder
-
-Three phases. Each phase adds a tool set to the previous; nothing is removed across phases. The trust contract widens deliberately at each step.
-
-**Phase 1 — Polish + Tag.** The AI edits a passage the user has highlighted, or it captures named entities from prose the user has written. The AI never starts a sentence; every action operates on a selection.
-
-**Phase 2 — Beat.** The user describes a beat — type, intent, target length. The AI writes the prose for that beat inside a structured card. The AI now generates prose, but only inside a slot the user authored.
-
-**Phase 3 — Agent.** The user describes a scene at a higher level. The AI plans the beats, drafts them, checks them against the Story Bible, and presents the result. The AI now runs multiple steps without a human in the loop, but every output is still a draft awaiting human review.
-
-Each phase ships with a defined, enumerated tool set. Phase gates (criteria for moving from one phase to the next) live in the roadmap doc.
-
 ## Tool-set doctrine
 
-Three rules that govern every AI tool in every phase.
+Three rules that govern every AI tool at every level.
 
 **Named.** Every tool has a unique `tool` identifier (e.g. `rephrase`, `capture_characters`, `write_beat`). The user sees the tool name (or its UI label) before invoking. There is no "ask the AI" free-text surface that could call any tool.
 
-**Scoped.** Every tool declares its input contract (what state it consumes), its output contract (what it produces), its preview surface (how the user reviews), and its commit path (how the result enters the project, if accepted). These are visible in the source under `src/ai/tools/<tool>.ts` and documented per tool below.
+**Scoped.** Every tool declares its input contract (what state it consumes), its output contract (what it produces), its preview surface (how the user reviews), and its commit path (how the result enters the project, if accepted). These are visible in the source under `src/ai/tools/<tool>.ts` and documented per tool in `AI_LEVELS.md`.
 
-**Composed only by humans.** No tool invokes another tool. If a workflow needs two tools, the UI orchestrates them sequentially with explicit user steps in between. Phase 3's agent loop is the one exception, and even there the agent's tool calls are constrained to a fixed manifest and audit-logged for the user to inspect after the run.
-
-## Phase 1 tool set
-
-Eight tools. Five operate on a highlighted passage and edit it. Three operate on a passage and write to the Story Bible.
-
-### Polish tools (passage → revised passage)
-
-| Tool                | UI label          | Temp | Length policy           | Context window      |
-|---------------------|-------------------|------|-------------------------|---------------------|
-| `rephrase`          | Rephrase          | 0.5  | ±20% of input           | 300 before / 150 after |
-| `fix_grammar`       | Fix grammar       | 0.2  | ±5% of input            | 200 / 100           |
-| `vivid_detail`      | Vivid             | 0.75 | ≤ 1.5× input (hard cap) | 500 / 200           |
-| `shorten`           | Shorten           | 0.4  | within ±5% of target    | 300 / 150           |
-| `polish_dialogue`   | Polish dialogue   | 0.65 | ±15% of input           | 1000 / 500          |
-
-Each polish tool has the same input contract:
-
-```ts
-type PolishToolInput = {
-  selection: { from: number; to: number; text: string };
-  chapterId: string;
-  guidance?: string;          // free-text user note ("less formal", "punchier")
-  vividFocus?: "sensory" | "atmosphere" | "interiority" | "action";  // required for vivid_detail
-  shortenTargetPct?: number;  // required for shorten; default 30; range 20–50
-};
-```
-
-And the same output contract:
-
-```ts
-type PolishToolOutput = {
-  proposal: string;              // the revised passage
-  warnings: string[];            // confidence-check warnings (see below)
-  estimatedInputTokens: number;
-  actualInputTokens?: number;
-  actualOutputTokens?: number;
-};
-```
-
-The commit path is identical across polish tools: the proposal renders as a word-level diff in the Polish panel; Accept replaces the selection range with the proposal; Discard drops it. Selection range is the Tiptap `from`/`to`, threaded honestly through (no `indexOf` lookups).
-
-#### Action-specific prompts
-
-The prompt for each tool is a fixed string built per the prompt architecture (below). The action-specific instruction blocks:
-
-- **rephrase**: "Rewrite the passage in different words but with the same meaning, the same characters, the same events, the same emotional register, and the same point of view. Do not add new information. Do not remove information. Do not change names or pronouns. Return only the rewritten passage."
-
-- **fix_grammar**: "Correct only spelling, grammar, and punctuation. Do not rephrase. Do not restructure. Do not change word choices unless a word is clearly wrong. If the passage is already correct, return it verbatim. Return only the corrected passage."
-
-- **vivid_detail** (with `{focus}` interpolated): "Expand the passage by adding {focus} detail. Stay inside the same scene, the same moment, the same point of view. Do not invent new events, characters, or locations. Do not exceed 1.5× the input length. Return only the expanded passage." The focus chip adds a one-line guideline (sensory → "Focus on what the POV character sees, hears, smells, tastes, and feels physically"; atmosphere → "Focus on mood, weather, light, time of day, the texture of the place"; interiority → "Focus on the POV character's thoughts, doubts, recognitions, emotional shifts"; action → "Focus on physical motion: blocking, gestures, micro-actions, body language").
-
-- **shorten** (with `{pct}` interpolated): "Reduce the passage by approximately {pct}% while preserving every event, every line of dialogue, every revealed feeling, and the same point of view. Cut adjectives, adverbs, and filler before cutting sentences. Cut sentences before cutting paragraphs. Do not cut character names. Do not cut dialogue lines. Return only the shortened passage."
-
-- **polish_dialogue**: "Preserve every speaker's identity. Preserve every line's intent. Sharpen voice distinctions through word choice, register, hesitation patterns, dialect markers, and rhythm. Do not add new lines. Do not remove lines. Do not change who says what. Do not change pronouns or names. Return only the polished passage."
-
-### Capture tools (passage → bible proposal)
-
-| Tool                    | UI label                   | Temp | Output target           |
-|-------------------------|----------------------------|------|-------------------------|
-| `capture_characters`    | Capture characters         | 0.6  | `Characters.json` merge |
-| `capture_locations`     | Capture locations          | 0.6  | `Locations.json` merge  |
-| `capture_style`         | Capture style              | 0.6  | `Style.json` merge      |
-
-Capture tools take a larger selection (a paragraph or more) and a target bible:
-
-```ts
-type CaptureToolInput = {
-  selection: { from: number; to: number; text: string };
-  chapterId: string;
-  // For capture_characters/locations: optional name hint when the user invoked from the
-  // "Add to bible →" pill on a specific underlined word.
-  hint?: string;
-};
-
-type CaptureToolOutput = {
-  proposal: {
-    additions: Array<CharacterDraft | LocationDraft | StyleFieldDelta>;
-    updates: Array<CharacterUpdate | LocationUpdate | StyleFieldDelta>;
-  };
-  warnings: string[];
-  estimatedInputTokens: number;
-};
-```
-
-The commit path is a per-row review modal: each proposed addition or update has its own Accept and Discard. The user can edit any field inline before accepting. The bible is updated only after the user clicks "Apply selected" with at least one row accepted.
-
-Capture tools return structured JSON. If the LLM returns malformed JSON, the tool runs one repair retry (with the parse error and the schema attached to the prompt) before surfacing a "Capture failed" error to the user. No silent no-op.
+**Composed only by the harness, never by the model.** No tool invokes another tool, and the model never decides which tool runs. The writer chooses an action; the harness runs it. When a workflow needs several steps (Level 4 scene drafting, Level 5 agent runs), the **harness** sequences them deterministically — the model is called once per step as a stateless proposer, never given the controls. A Level 5 run is therefore a deterministic pipeline of JSON calls, audit-logged to a run trace for the writer to inspect, not a model-driven tool loop.
 
 ## Language: UI vs prose, two independent choices
 
@@ -170,11 +87,11 @@ Why this decoupling matters. Many writers operate in an L2 (an editor working in
 
 **Adding a new language.** Both the UI pack and the prompt pack live in the repository as JSON files. Adding Spanish, French, German, or Mandarin support is a pull request that adds two files. There is no marketplace, no infrastructure, no review queue. The community can fork, add their pack, and submit upstream. The application validates each pack against a schema at startup and refuses to load malformed packs (with a clear error). v0.2 ships with English and Vietnamese as the reference packs.
 
-**Prompt-pack design.** Each pack is a structured JSON document (validated by zod) whose keys mirror the action set: a `system` preamble in the target language; per-tool blocks with `actionInstruction`, `outputFormatReminder`, and tool-specific fields like `vividFocusChips` (each chip's name and its directive). The pack also declares language-specific guidance — pronoun systems (Vietnamese has many; Japanese has more; English has few), dialogue conventions, register markers — that the AI prompt blocks pull from for relevant actions. This is the same idea as the predecessor project's language packs, but the schema is sharper and the integration with the prompt assembler is named (`buildPrompt` calls `loadPromptPack(project.language)`, never reaches across to UI translations).
+**Prompt-pack design.** Each pack is a structured JSON document (validated by zod) whose keys mirror the action set: a `system` preamble in the target language; per-tool blocks with `actionInstruction`, `outputFormatReminder`, and tool-specific fields like `vividFocusChips` (each chip's name and its directive). The pack also declares language-specific guidance — pronoun systems (Vietnamese has many; Japanese has more; English has few), dialogue conventions, register markers — that the AI prompt blocks pull from for relevant actions. The integration with the prompt assembler is named: `buildPrompt` calls `loadPromptPack(project.language)`, never reaching across to UI translations.
 
 ## Prompt architecture
 
-Every phase 1 tool assembles its prompt from the same block stack, in this order:
+Every prose-touching tool assembles its prompt from the same block stack, in this order:
 
 ```
 1. System preamble                  (fixed, ~150 tokens)
@@ -189,11 +106,11 @@ Every phase 1 tool assembles its prompt from the same block stack, in this order
 10. Output format reminder          (~50 tokens)
 ```
 
-The system preamble, fixed across all phase 1 tools:
+The system preamble, fixed across all prose-touching tools:
 
 > You are a writing assistant for a novelist. You preserve the author's voice. You edit only what is asked. You return only the requested output, in plain prose, with no headers, no commentary, no metadata. You preserve every named character, every named place, and the point of view. If the user's instruction would require changing something outside the selection, refuse and explain.
 
-The total prompt is capped at a model-dependent input budget (default 6,000 input tokens; configurable per model in Settings).
+The total prompt is capped at a model-dependent input budget (default 6,000 input tokens; configurable per model in Settings). The action instruction and tool-specific fields (temperatures, length policies, context windows) are listed per tool in `AI_LEVELS.md`.
 
 ### Trimming policy
 
@@ -208,7 +125,7 @@ Relevance-first, surroundings-second. The bible is the small, hard-won, high-sig
 
 ## Confidence checks
 
-Before showing any polish proposal, three local checks run on the AI's output:
+Before showing any prose proposal, three local checks run on the AI's output:
 
 1. **Named characters preserved.** Every character name (primary or alias) that appears in the input also appears in the output. Failure → warning banner "AI output drops a character name: <name>."
 
@@ -218,7 +135,7 @@ Before showing any polish proposal, three local checks run on the AI's output:
 
 Checks are local string operations — no LLM call. If any check fails the diff still renders, with a warning banner above the Accept button. The user can override. The point is to make the cost legible, not to block.
 
-Phase 2 adds a length-policy check (post-truncation); phase 3 adds a continuity-check that runs against the bible.
+Level 3 adds a length-policy check (post-truncation); Levels 4 and 5 add a continuity-check that runs against the bible.
 
 ## Off-topic detection
 
@@ -254,36 +171,10 @@ Four decisions enforce the local-first posture for AI specifically.
 
 **Connection test sends a constant.** The "Test connection" button in Settings sends the fixed string `"Hello"` to the configured endpoint, not user prose.
 
-## Phase 2 tool set (sketch)
+## What we will not ship at any level
 
-Phase 2 ships when phase 1 has passed its gate (see roadmap). The phase 2 additions to the toolset:
+Model-driven execution of any kind: provider function-calling, a tool-execution loop, or any path where the model — rather than the harness — decides what runs next. A write to the manuscript or the bible without an explicit user Accept of a write-op card. A tool that runs without user invocation. A background process that consumes the user's tokens. A telemetry pipeline that reports tool usage to xnovelist's developers.
 
-- **`write_beat`** — Generates prose for a structured beat card. Input: beat type (action / reaction / dialogue / realization / decision / transition / guide), beat description, target word count (200 / 400 / 600), preceding prose context, following prose context. Output: a draft of the beat's prose. Commit path: staged inside the beat card with Apply / Retry / Discard, where Apply inserts the prose beneath the card and marks the card "done."
+A free-text intent box is **not** offered at Levels 1–4 — there the writer chooses a named action from the composer, and the model never selects the operation. The free-text goal box exists **only at Level 5**, where the harness turns the stated intent into a deterministic, audit-logged pipeline of stateless JSON proposals.
 
-- **`summarize_chapter`** — Proposes a continuity Markdown document for the active chapter following the template in the Story Bible doc. Input: chapter content, preceding continuity. Output: a continuity draft. Commit path: rendered into the Continuity tab as a proposal; user edits and accepts.
-
-- **`check_continuity`** — Scans a chapter for contradictions against the bible and preceding continuity. Input: chapter content, full bible, all preceding continuity files. Output: a list of flagged statements with severity (high / medium / low) and the conflicting fact. Commit path: a report panel; no automatic edits. The user navigates to flagged lines and decides what to do.
-
-Phase 2 also unlocks the Beat Anchor insertion UI (already coded but UI-hidden in phase 1) and the Generate Continuity button on the Continuity tab. The Continue Writing action is *not* unhidden — it's replaced by `write_beat` with a "transition" beat type for the use case it covered.
-
-## Phase 3 tool set (sketch)
-
-Phase 3 introduces multi-step orchestration. The new tools:
-
-- **`plan_scene`** — Turns a scene description into a beat sheet (a sequence of beat cards). Input: scene description, characters present, location, target total length. Output: an ordered list of beat cards.
-
-- **`draft_scene`** — Drafts every beat in a plan, in order, with continuity awareness. Input: a plan from `plan_scene`. Output: prose for each beat, concatenated into a scene draft. Internally calls `write_beat` per beat plus `check_continuity` after.
-
-- **`revise_scene`** — Applies revision notes to an already-drafted scene. Input: scene draft, revision notes. Output: a revised scene draft.
-
-- **`audit_continuity`** — Sweeps the entire manuscript against the bible. Input: every chapter, the full bible. Output: a project-wide continuity report.
-
-Phase 3 orchestration is bounded: an agent run has a maximum depth (default 3 levels, configurable in Settings); it can only call tools in the phase 3 manifest; every internal call is logged and visible to the user in a "run trace" panel after the run completes. The user can replay an agent run from a saved trace.
-
-Multi-candidate output ("show me 3 versions") becomes the natural review surface for phase 3: a `draft_scene` run can return N parallel drafts (default 1, configurable up to 3) for side-by-side comparison.
-
-## What we will not ship in any phase
-
-A free-text "ask the AI" chat surface. A tool that can call any other tool. A tool that runs without user invocation. A tool that writes to the manuscript or the bible without an explicit user Accept. A background process that consumes the user's tokens. A telemetry pipeline that reports tool usage to xnovelist's developers.
-
-These are commitments the tool-set doctrine and the master toggle exist to keep.
+These are commitments the proposer/harness split, the tool-set doctrine, the master toggle, and the level ceiling exist to keep.

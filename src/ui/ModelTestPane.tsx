@@ -67,7 +67,7 @@ export default function ModelTestPane({
     setTesting(true);
     setResult(null);
     try {
-      const r = await testConnection(providerId, providerConfig, {
+      const r = await testConnection(providerId, providerConfig as unknown as Parameters<typeof testConnection>[1], {
         modelId: modelId.trim(),
         userPrompt: prompt,
       });

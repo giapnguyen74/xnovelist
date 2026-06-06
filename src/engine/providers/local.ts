@@ -69,9 +69,15 @@ export async function fetchLocalModels(
     // Ollama /api/tags format is { models: [ { name: '...' } ] }
     const list = json?.data || json?.models || [];
     return list
-      .map((item: any) => item.id || item.name || item.model || String(item))
+      .map((item: unknown) => {
+        if (item && typeof item === 'object') {
+          const obj = item as Record<string, unknown>;
+          return String(obj.id || obj.name || obj.model || '');
+        }
+        return String(item);
+      })
       .filter(Boolean);
-  } catch (error) {
+  } catch {
     console.warn('Failed to fetch models from local AI server. This is normal if the server is offline or lacks a /models endpoint.');
     return [];
   }

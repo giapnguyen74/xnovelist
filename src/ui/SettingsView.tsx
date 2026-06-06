@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from '../i18n/useTranslation';
 import {
-  Sparkles, Bot, Globe, Key, CheckCircle2, AlertCircle,
-  HelpCircle, ChevronDown, ChevronUp, Shield, Trash2, ArrowRight, ArrowLeft,
+  Sparkles, CheckCircle2, AlertCircle,
+  ChevronDown, ChevronUp, Shield, ArrowRight, ArrowLeft,
   Settings, Laptop, Send, Loader2, Terminal
 } from 'lucide-react';
 import { WorkspaceAIConfig, ProviderId, OpenAIProviderConfig, AnthropicProviderConfig, OpenRouterProviderConfig, LocalAIProviderConfig } from '../storage/aiConfig';
@@ -116,6 +116,10 @@ export default function SettingsView({
     setPlaygroundResult(null);
     try {
       const config = workspaceAI.providers[playgroundProvider];
+      if (!config) {
+        setPlaygroundResult({ ok: false, error: 'Provider configuration is empty.' });
+        return;
+      }
       const r = await testConnection(playgroundProvider, config, {
         modelId: playgroundModel.trim(),
         userPrompt: playgroundPrompt,
@@ -149,7 +153,7 @@ export default function SettingsView({
         })
         .finally(() => setLoadingLocalModels(false));
     }
-  }, [expandedProvider, workspaceAI.providers.local?.baseUrl]);
+  }, [expandedProvider, workspaceAI.providers.local, localModels.length]);
 
   // AI Level Descriptive captions
   const getLevelCaption = (lvl: number) => {
@@ -174,7 +178,7 @@ export default function SettingsView({
   const handleLevelChange = async (lvl: number) => {
     const updated: WorkspaceAIConfig = {
       ...workspaceAI,
-      level: lvl as any,
+      level: lvl as 0 | 1 | 2 | 3 | 4 | 5,
     };
     await onChangeAIConfig(updated);
   };
@@ -183,12 +187,32 @@ export default function SettingsView({
     setExpandedProvider(expandedProvider === pid ? null : pid);
   };
 
-  const updateProviderConfig = async (pid: ProviderId, updates: any) => {
+  const updateProviderConfig = async (
+    pid: ProviderId,
+    updates: Partial<OpenAIProviderConfig> | Partial<AnthropicProviderConfig> | Partial<OpenRouterProviderConfig> | Partial<LocalAIProviderConfig>
+  ) => {
     const updatedProviders = { ...workspaceAI.providers };
-    updatedProviders[pid] = {
-      ...(updatedProviders[pid] || {}),
-      ...updates,
-    } as any;
+    if (pid === 'openai') {
+      updatedProviders.openai = {
+        ...updatedProviders.openai,
+        ...(updates as Partial<OpenAIProviderConfig>),
+      } as OpenAIProviderConfig;
+    } else if (pid === 'anthropic') {
+      updatedProviders.anthropic = {
+        ...updatedProviders.anthropic,
+        ...(updates as Partial<AnthropicProviderConfig>),
+      } as AnthropicProviderConfig;
+    } else if (pid === 'openrouter') {
+      updatedProviders.openrouter = {
+        ...updatedProviders.openrouter,
+        ...(updates as Partial<OpenRouterProviderConfig>),
+      } as OpenRouterProviderConfig;
+    } else if (pid === 'local') {
+      updatedProviders.local = {
+        ...updatedProviders.local,
+        ...(updates as Partial<LocalAIProviderConfig>),
+      } as LocalAIProviderConfig;
+    }
 
     const updatedConfig: WorkspaceAIConfig = {
       ...workspaceAI,
@@ -971,7 +995,7 @@ export default function SettingsView({
           </div>
           {res.reply && (
             <div className="font-mono text-[9px] opacity-75 border-t border-green-500/20 pt-1.5 select-text truncate">
-              <strong>Reply:</strong> "{res.reply}"
+              <strong>Reply:</strong> &quot;{res.reply}&quot;
             </div>
           )}
         </div>

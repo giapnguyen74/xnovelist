@@ -102,12 +102,12 @@ export default function EditorCanvas({
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // Character card popup states
-  const [clickedCharacter, setClickedCharacter] = useState<any | null>(null);
+  const [clickedCharacter, setClickedCharacter] = useState<Character | null>(null);
   const [characterCardPosition, setCharacterCardPosition] = useState({ x: 0, y: 0 });
   const [isCharacterCardOpen, setIsCharacterCardOpen] = useState(false);
   const characterCardRef = useRef<HTMLDivElement>(null);
 
-  const handleCharacterHighlightClickRef = useRef<any>(null);
+  const handleCharacterHighlightClickRef = useRef<((aliasText: string, event: MouseEvent) => void) | null>(null);
   useEffect(() => {
     handleCharacterHighlightClickRef.current = (aliasText: string, event: MouseEvent) => {
       if (!characters) return;

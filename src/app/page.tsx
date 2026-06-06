@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Settings, History, Plus, FolderPlus, ArrowLeft, Download,
   Menu, MoreHorizontal, X as CloseIcon, BookOpen, Maximize2, Sparkles,
@@ -8,8 +8,11 @@ import {
 import { useTranslation } from '../i18n/useTranslation';
 import { IndexedDBProjectStorage } from '../storage/IndexedDBProjectStorage';
 import { ProjectStorage } from '../storage/ProjectStorage';
-import { Project, Chapter, Character, Location, Style } from '../storage/schemas';
+import { Project, Chapter, Character, Location, Style, CharacterSchema, LocationSchema } from '../storage/schemas';
 import { takeSnapshot } from '../storage/snapshots';
+import { runTool, executeWriteOp } from '../ai/runTool';
+import { makeCallModel } from '../ai/llm/client';
+import { ToolContext, ToolResult, ProposalResult } from '../ai/types';
 import ChapterList from '../editor/ChapterList';
 import EditorCanvas from '../editor/EditorCanvas';
 import BibleWorkspace from '../bible/BibleWorkspace';
@@ -36,6 +39,7 @@ interface ProjectListItem {
 
 export default function WorkspacePage() {
   const { t } = useTranslation();
+  const [selectionText, setSelectionText] = useState<string>('');
   const [storage, setStorage] = useState<ProjectStorage | null>(null);
   const [workspaceAI, setWorkspaceAI] = useState<WorkspaceAIConfig>(DEFAULT_AI_CONFIG);
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
@@ -131,6 +135,18 @@ export default function WorkspacePage() {
         }
       }
     }
+  }, []);
+
+  // Track active selection text for AI panel scope
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const sel = window.getSelection()?.toString() || '';
+      setSelectionText(sel);
+    };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
   }, []);
 
   // Modal dialog toggles
@@ -889,6 +905,52 @@ export default function WorkspacePage() {
     await storage.writeFile(`${prefix}Continuity/chapter-${chapterId}.md`, content);
   };
 
+  // ---- AI engine wiring (Level 1) ----------------------------------------
+  const buildToolContext = (): ToolContext => {
+    if (!storage || !project) throw new Error('No active project.');
+    return {
+      storage,
+      project,
+      prefix: `projects/${project.id}/`,
+      lang: project.language || 'en',
+      callModel: makeCallModel(workspaceAI, true),
+      onUpdateCharacters: (list) => {
+        setCharacters({ schemaVersion: 1, characters: list });
+      },
+      onUpdateLocations: (list) => {
+        setLocations({ schemaVersion: 1, locations: list });
+      },
+      onUpdateStyle: (newStyle) => {
+        setStyle(newStyle);
+      },
+      onUpdateContinuity: async (chapterId, content) => {
+        await handleUpdateContinuity(chapterId, content);
+      },
+    };
+  };
+
+  const handleRunTool = async (toolId: string, input: unknown): Promise<ToolResult<ProposalResult>> => {
+    if (!storage || !project) throw new Error('Open a project first.');
+    return runTool(toolId, input, buildToolContext(), workspaceAI);
+  };
+
+  const handleExecuteWriteOp = async (opId: string, args: unknown): Promise<void> => {
+    if (!storage || !project) throw new Error('Open a project first.');
+    await executeWriteOp(opId, args, buildToolContext(), workspaceAI);
+    try {
+      await takeSnapshot(
+        storage,
+        project.activeChapterId,
+        'manual',
+        `ai-l1-${opId}`,
+        undefined,
+        project.id
+      );
+    } catch (e) {
+      console.error('Failed to trigger snapshot for write-op:', e);
+    }
+  };
+
   if (!storage) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-[var(--background)] text-[var(--foreground)]">
@@ -1274,7 +1336,6 @@ export default function WorkspacePage() {
                   onSelectChapter={handleSelectChapter}
                   onCreateChapter={handleCreateChapter}
                   onDeleteChapter={handleDeleteChapter}
-                  onReorderChapters={handleReorderChapters}
                   characters={characters.characters}
                   locations={locations.locations}
                   onSelectBibleItem={(type, id) => {
@@ -1309,7 +1370,6 @@ export default function WorkspacePage() {
                     }}
                     onCreateChapter={handleCreateChapter}
                     onDeleteChapter={handleDeleteChapter}
-                    onReorderChapters={handleReorderChapters}
                     characters={characters.characters}
                     locations={locations.locations}
                     onSelectBibleItem={(type, id) => {
@@ -1338,7 +1398,6 @@ export default function WorkspacePage() {
                   }}
                   onCreateChapter={handleCreateChapter}
                   onDeleteChapter={handleDeleteChapter}
-                  onReorderChapters={handleReorderChapters}
                   characters={characters.characters}
                   locations={locations.locations}
                   onSelectBibleItem={(type, id) => {
@@ -1401,6 +1460,13 @@ export default function WorkspacePage() {
                 onClose={() => setIsAIPanelOpen(false)}
                 workspaceAI={workspaceAI}
                 onOpenPreferences={() => { setShowAISettingsPage(true); setSettingsTab('ai'); }}
+                hasProject={!!project}
+                project={project}
+                activeChapterMarkdown={activeChapterMarkdown}
+                selectionText={selectionText}
+                activeChapterId={project?.activeChapterId}
+                runTool={handleRunTool}
+                onExecuteWriteOp={handleExecuteWriteOp}
               />
             </div>
           </>
