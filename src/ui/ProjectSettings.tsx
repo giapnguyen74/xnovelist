@@ -76,7 +76,7 @@ export default function ProjectSettings({
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-[var(--editor-bg)] p-6 md:p-8 space-y-8 select-none">
+    <div className="h-full overflow-y-auto bg-[var(--editor-bg)] p-6 md:p-8 pb-32 space-y-8 select-none">
       <div className="max-w-4xl mx-auto space-y-6">
         
         {/* Header Title */}

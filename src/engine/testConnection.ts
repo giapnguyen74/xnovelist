@@ -15,12 +15,12 @@ export interface TestResult {
   reply?: string;
 }
 
-/** Override knobs for the test pane: pick a specific model and tweak the
- *  prompt without touching the saved config. Both optional — omitting them
- *  reproduces the original "test the configured default" behaviour. */
+/** Override knobs for the test playground: pick a specific model and tweak the
+ *  prompt without touching the saved config. */
 export interface TestOverrides {
   modelId?: string;
   userPrompt?: string;
+  maxTokens?: number;
 }
 
 const TEST_SYSTEM_PROMPT = 'Respond with the single word: pong';
@@ -66,8 +66,8 @@ export async function testConnection(
           { role: 'system', content: TEST_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0,
-        max_tokens: 8,
+        temperature: overrides?.userPrompt ? 0.7 : 0,
+        max_tokens: overrides?.maxTokens || (overrides?.userPrompt ? 4096 : 1024),
       };
     } else if (providerId === 'anthropic') {
       endpoint = 'https://api.anthropic.com/v1/messages';
@@ -90,8 +90,8 @@ export async function testConnection(
         messages: [
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0,
-        max_tokens: 8,
+        temperature: overrides?.userPrompt ? 0.7 : 0,
+        max_tokens: overrides?.maxTokens || (overrides?.userPrompt ? 4096 : 1024),
       };
     } else if (providerId === 'openrouter') {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
@@ -110,8 +110,8 @@ export async function testConnection(
           { role: 'system', content: TEST_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0,
-        max_tokens: 8,
+        temperature: overrides?.userPrompt ? 0.7 : 0,
+        max_tokens: overrides?.maxTokens || (overrides?.userPrompt ? 4096 : 1024),
       };
     } else if (providerId === 'local') {
       let baseUrl = (config.baseUrl || '').trim();
@@ -142,16 +142,16 @@ export async function testConnection(
           { role: 'system', content: TEST_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0,
-        max_tokens: 8,
+        temperature: overrides?.userPrompt ? 0.7 : 0,
+        max_tokens: overrides?.maxTokens || (overrides?.userPrompt ? 4096 : 1024),
       };
     } else {
       return { ok: false, error: 'Unknown provider.' };
     }
 
-    // 2. Perform Network Call with 10-second timeout
+    // 2. Perform Network Call with 60-second timeout to support deep thinking models and slow local LLMs
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -216,7 +216,7 @@ export async function testConnection(
     };
   } catch (err: any) {
     if (err.name === 'AbortError') {
-      return { ok: false, error: 'Connection timed out after 10 seconds. Check the base URL and network.' };
+      return { ok: false, error: 'Connection timed out after 60 seconds. Check the base URL and network.' };
     }
     return {
       ok: false,

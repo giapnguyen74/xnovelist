@@ -31,10 +31,12 @@ interface EditorCanvasProps {
   characters?: Character[];
   locations?: Location[];
   highlightBibleRefs?: boolean;
+  onToggleHighlightBibleRefs?: () => void;
   onAttachEvidence?: (entityType: 'characters' | 'locations', entityId: string, quote: string) => void;
   aiLevel?: number;
   isAIPanelOpen?: boolean;
   onToggleAIPanel?: () => void;
+  onOpenBibleCharacter?: (charId: string) => void;
 }
 
 // Manuscript-page math: 250 words/page (double-spaced standard), 200 wpm reading pace.
@@ -68,10 +70,12 @@ export default function EditorCanvas({
   characters = [],
   locations = [],
   highlightBibleRefs = true,
+  onToggleHighlightBibleRefs,
   onAttachEvidence,
   aiLevel = 0,
   isAIPanelOpen = false,
   onToggleAIPanel,
+  onOpenBibleCharacter,
 }: EditorCanvasProps) {
   const { t } = useTranslation();
   const [title, setTitle] = useState(initialTitle);
@@ -96,6 +100,51 @@ export default function EditorCanvas({
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Character card popup states
+  const [clickedCharacter, setClickedCharacter] = useState<any | null>(null);
+  const [characterCardPosition, setCharacterCardPosition] = useState({ x: 0, y: 0 });
+  const [isCharacterCardOpen, setIsCharacterCardOpen] = useState(false);
+  const characterCardRef = useRef<HTMLDivElement>(null);
+
+  const handleCharacterHighlightClickRef = useRef<any>(null);
+  useEffect(() => {
+    handleCharacterHighlightClickRef.current = (aliasText: string, event: MouseEvent) => {
+      if (!characters) return;
+      const cleanText = aliasText.trim().toLowerCase();
+      const match = characters.find(char => {
+        const nameMatch = char.name && char.name.trim().toLowerCase() === cleanText;
+        const aliasMatch = Array.isArray(char.aliases) && char.aliases.some((alias: string) => alias && alias.trim().toLowerCase() === cleanText);
+        return nameMatch || aliasMatch;
+      });
+
+      if (match) {
+        setClickedCharacter(match);
+        
+        let posX = event.clientX;
+        let posY = event.clientY + 10;
+        
+        const cardWidth = 320;
+        if (posX + cardWidth > window.innerWidth) {
+          posX = window.innerWidth - cardWidth - 16;
+        }
+        if (posX < 16) {
+          posX = 16;
+        }
+        
+        const cardHeight = 350;
+        if (posY + cardHeight > window.innerHeight) {
+          posY = event.clientY - cardHeight - 10;
+        }
+        if (posY < 16) {
+          posY = 16;
+        }
+
+        setCharacterCardPosition({ x: posX, y: posY });
+        setIsCharacterCardOpen(true);
+      }
+    };
+  }, [characters]);
   
   const [toast, setToast] = useState<string | null>(null);
 
@@ -343,6 +392,16 @@ export default function EditorCanvas({
             return true;
           }
           return false;
+        },
+        click: (view, event) => {
+          const target = event.target as HTMLElement;
+          const charHighlight = target.closest('.character-highlight');
+          if (charHighlight) {
+            const aliasText = charHighlight.textContent || '';
+            handleCharacterHighlightClickRef.current?.(aliasText, event);
+            return true;
+          }
+          return false;
         }
       }
     },
@@ -585,6 +644,30 @@ export default function EditorCanvas({
     return () => window.removeEventListener('scroll', handleScroll, true);
   }, [isContextMenuOpen]);
 
+  // Dismiss character card on click outside
+  useEffect(() => {
+    if (!isCharacterCardOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (characterCardRef.current && !characterCardRef.current.contains(e.target as Node)) {
+        const target = e.target as HTMLElement;
+        if (target.closest('.character-highlight')) {
+          return;
+        }
+        setIsCharacterCardOpen(false);
+      }
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, [isCharacterCardOpen]);
+
+  // Dismiss character card on scroll
+  useEffect(() => {
+    if (!isCharacterCardOpen) return;
+    const handleScroll = () => setIsCharacterCardOpen(false);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [isCharacterCardOpen]);
+
   // Sync Search state with Tiptap
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
@@ -690,6 +773,8 @@ export default function EditorCanvas({
           aiLevel={aiLevel}
           isAIPanelOpen={isAIPanelOpen}
           onToggleAIPanel={onToggleAIPanel}
+          highlightBibleRefs={highlightBibleRefs}
+          onToggleHighlightBibleRefs={onToggleHighlightBibleRefs}
         />
       )}
 
@@ -853,6 +938,102 @@ export default function EditorCanvas({
                   </button>
                 ))}
               </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Character Info Card */}
+      {isCharacterCardOpen && clickedCharacter && (
+        <div
+          ref={characterCardRef}
+          className="fixed z-50 bg-[var(--editor-bg)] border border-[var(--border)] shadow-2xl p-5 w-80 rounded-none text-[var(--foreground)] animate-fade-in flex flex-col gap-3"
+          style={{ top: characterCardPosition.y, left: characterCardPosition.x }}
+        >
+          {/* Header */}
+          <div className="flex justify-between items-start border-b border-[var(--border)]/40 pb-2">
+            <div>
+              <button
+                onClick={() => {
+                  if (onOpenBibleCharacter) {
+                    onOpenBibleCharacter(clickedCharacter.id);
+                    setIsCharacterCardOpen(false);
+                  }
+                }}
+                className="text-xs font-extrabold uppercase tracking-widest text-[var(--accent)] hover:underline cursor-pointer text-left block bg-transparent border-none p-0 focus:outline-none"
+                title="Open in Story Bible"
+              >
+                {clickedCharacter.name}
+              </button>
+              {clickedCharacter.role && (
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold block mt-0.5">
+                  {clickedCharacter.role}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setIsCharacterCardOpen(false)}
+              className="text-xs opacity-50 hover:opacity-100 font-bold p-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Details list */}
+          <div className="text-[11px] space-y-2.5 max-h-[250px] overflow-y-auto pr-1">
+            {clickedCharacter.age !== undefined && (
+              <div>
+                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Age</span>
+                <p className="opacity-90">{clickedCharacter.age}</p>
+              </div>
+            )}
+
+            {Array.isArray(clickedCharacter.aliases) && clickedCharacter.aliases.length > 0 && (
+              <div>
+                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Aliases</span>
+                <p className="opacity-90 font-mono text-[10px]">{clickedCharacter.aliases.join(', ')}</p>
+              </div>
+            )}
+
+            {clickedCharacter.appearance && (
+              <div>
+                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Appearance</span>
+                <p className="opacity-90 leading-relaxed">{clickedCharacter.appearance}</p>
+              </div>
+            )}
+
+            {Array.isArray(clickedCharacter.traits) && clickedCharacter.traits.length > 0 && (
+              <div>
+                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest mb-0.5">Traits</span>
+                <div className="flex flex-wrap gap-1">
+                  {clickedCharacter.traits.map((trait: string, idx: number) => (
+                    <span key={idx} className="px-1.5 py-0.5 bg-[var(--border)]/35 text-[9px] font-semibold">
+                      {trait}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {Array.isArray(clickedCharacter.desires) && clickedCharacter.desires.length > 0 && (
+              <div>
+                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Desires</span>
+                <p className="opacity-90 leading-relaxed">{clickedCharacter.desires.join(', ')}</p>
+              </div>
+            )}
+
+            {Array.isArray(clickedCharacter.fears) && clickedCharacter.fears.length > 0 && (
+              <div>
+                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Fears</span>
+                <p className="opacity-90 leading-relaxed">{clickedCharacter.fears.join(', ')}</p>
+              </div>
+            )}
+
+            {clickedCharacter.notes && (
+              <div className="border-t border-[var(--border)]/20 pt-2">
+                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Notes</span>
+                <p className="opacity-90 leading-relaxed whitespace-pre-wrap">{clickedCharacter.notes}</p>
+              </div>
             )}
           </div>
         </div>

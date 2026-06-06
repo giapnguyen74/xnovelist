@@ -13,7 +13,6 @@ import { takeSnapshot } from '../storage/snapshots';
 import ChapterList from '../editor/ChapterList';
 import EditorCanvas from '../editor/EditorCanvas';
 import BibleWorkspace from '../bible/BibleWorkspace';
-import SettingsDialog from '../ui/SettingsDialog';
 import ExportImportDialog from '../ui/ExportImportDialog';
 import SnapshotHistoryDialog from '../ui/SnapshotHistoryDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -22,7 +21,7 @@ import ProjectSettings from '../ui/ProjectSettings';
 import CommandPalette from '../editor/CommandPalette';
 import { WorkspaceAIConfig, loadAIConfig, saveAIConfig, DEFAULT_AI_CONFIG } from '../storage/aiConfig';
 import AIPanel from '../ui/AIPanel';
-import AISettingsView from '../ui/AISettingsView';
+import SettingsView from '../ui/SettingsView';
 
 interface ProjectListItem {
   id: string;
@@ -41,6 +40,7 @@ export default function WorkspacePage() {
   const [workspaceAI, setWorkspaceAI] = useState<WorkspaceAIConfig>(DEFAULT_AI_CONFIG);
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
   const [showAISettingsPage, setShowAISettingsPage] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'ai'>('general');
 
   // Dashboard state
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
@@ -134,7 +134,6 @@ export default function WorkspacePage() {
   }, []);
 
   // Modal dialog toggles
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -305,7 +304,6 @@ export default function WorkspacePage() {
       if (projectDeleteId !== null) { setProjectDeleteId(null); return; }
       if (isMobileMoreOpen) { setIsMobileMoreOpen(false); return; }
       if (isMobileSidebarOpen) { setIsMobileSidebarOpen(false); return; }
-      if (isSettingsOpen) { setIsSettingsOpen(false); return; }
       if (isExportOpen) { setIsExportOpen(false); return; }
       if (isHistoryOpen) { setIsHistoryOpen(false); return; }
       if (isCreateModalOpen) { setIsCreateModalOpen(false); return; }
@@ -320,7 +318,6 @@ export default function WorkspacePage() {
     projectDeleteId,
     isMobileMoreOpen,
     isMobileSidebarOpen,
-    isSettingsOpen,
     isExportOpen,
     isHistoryOpen,
     isCreateModalOpen,
@@ -900,14 +897,17 @@ export default function WorkspacePage() {
     );
   }
 
-  // AI Settings Full Page View
+  // Unified Settings Full Page View
   if (showAISettingsPage) {
     return (
-      <AISettingsView
+      <SettingsView
         workspaceAI={workspaceAI}
         onChangeAIConfig={handleSaveAIConfig}
+        theme={theme}
+        onChangeTheme={setTheme}
         onBack={() => setShowAISettingsPage(false)}
         backLabel={currentProjectId ? "Back to Novel" : "Back to Novels Dashboard"}
+        defaultTab={settingsTab}
       />
     );
   }
@@ -938,7 +938,7 @@ export default function WorkspacePage() {
 
               {/* General Settings */}
               <button
-                onClick={() => setIsSettingsOpen(true)}
+                onClick={() => { setShowAISettingsPage(true); setSettingsTab('general'); }}
                 className="p-2 rounded-lg border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-xs font-semibold flex items-center gap-1.5 cursor-pointer text-[var(--foreground)]"
               >
                 <Settings size={14} className="opacity-80" />
@@ -947,7 +947,7 @@ export default function WorkspacePage() {
 
               {/* AI Settings */}
               <button
-                onClick={() => setShowAISettingsPage(true)}
+                onClick={() => { setShowAISettingsPage(true); setSettingsTab('ai'); }}
                 className="p-2 rounded-lg border border-[var(--border)] hover:bg-[var(--sidebar-bg)] transition-colors text-xs font-semibold flex items-center gap-1.5 cursor-pointer text-[var(--foreground)]"
               >
                 <Sparkles size={14} className="opacity-80 text-[var(--accent)] animate-pulse" />
@@ -1124,13 +1124,7 @@ export default function WorkspacePage() {
           onCancel={() => setProjectDeleteId(null)}
         />
 
-        {/* Settings Dialog */}
-        <SettingsDialog
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          theme={theme}
-          onChangeTheme={setTheme}
-        />
+
       </div>
     );
   }
@@ -1279,7 +1273,6 @@ export default function WorkspacePage() {
                   wordCounts={wordCounts}
                   onSelectChapter={handleSelectChapter}
                   onCreateChapter={handleCreateChapter}
-                  onRenameChapter={handleRenameChapter}
                   onDeleteChapter={handleDeleteChapter}
                   onReorderChapters={handleReorderChapters}
                   characters={characters.characters}
@@ -1315,7 +1308,6 @@ export default function WorkspacePage() {
                       setIsMobileSidebarOpen(false);
                     }}
                     onCreateChapter={handleCreateChapter}
-                    onRenameChapter={handleRenameChapter}
                     onDeleteChapter={handleDeleteChapter}
                     onReorderChapters={handleReorderChapters}
                     characters={characters.characters}
@@ -1345,7 +1337,6 @@ export default function WorkspacePage() {
                     setMobileView('main');
                   }}
                   onCreateChapter={handleCreateChapter}
-                  onRenameChapter={handleRenameChapter}
                   onDeleteChapter={handleDeleteChapter}
                   onReorderChapters={handleReorderChapters}
                   characters={characters.characters}
@@ -1382,10 +1373,16 @@ export default function WorkspacePage() {
                     characters={characters.characters}
                     locations={locations.locations}
                     highlightBibleRefs={project.highlightBibleRefs ?? true}
+                    onToggleHighlightBibleRefs={() => handleUpdateProject({ highlightBibleRefs: !(project.highlightBibleRefs ?? true) })}
                     onAttachEvidence={handleAttachEvidence}
                     aiLevel={workspaceAI.level}
                     isAIPanelOpen={isAIPanelOpen}
                     onToggleAIPanel={() => setIsAIPanelOpen(!isAIPanelOpen)}
+                    onOpenBibleCharacter={(charId) => {
+                      setActiveTab('bible');
+                      setBibleTab('characters');
+                      setSelectedCharId(charId);
+                    }}
                   />
                 ) : (
                   <div className="h-full w-full flex flex-col items-center justify-center text-xs opacity-50 bg-[var(--editor-bg)]">
@@ -1403,7 +1400,7 @@ export default function WorkspacePage() {
                 isOpen={isAIPanelOpen && workspaceAI.level >= 1}
                 onClose={() => setIsAIPanelOpen(false)}
                 workspaceAI={workspaceAI}
-                onOpenPreferences={() => setShowAISettingsPage(true)}
+                onOpenPreferences={() => { setShowAISettingsPage(true); setSettingsTab('ai'); }}
               />
             </div>
           </>
@@ -1421,7 +1418,6 @@ export default function WorkspacePage() {
                 setActiveTab('editor');
               }}
               onCreateChapter={handleCreateChapter}
-              onRenameChapter={handleRenameChapter}
               onUpdateChapterSynopsis={handleUpdateChapterSynopsis}
               onUpdateChapterStatus={handleUpdateChapterStatus}
               onDeleteChapter={handleDeleteChapter}
@@ -1543,8 +1539,8 @@ export default function WorkspacePage() {
               { label: t('snapshots'), icon: History, onClick: () => { setIsHistoryOpen(true); setIsMobileMoreOpen(false); } },
               { label: t('export'), icon: Download, onClick: () => { setIsExportOpen(true); setIsMobileMoreOpen(false); } },
               { label: t('distractionFree'), icon: Maximize2, onClick: () => { setIsDistractionFree(true); setIsMobileMoreOpen(false); } },
-              { label: t('generalSettings'), icon: Settings, onClick: () => { setIsSettingsOpen(true); setIsMobileMoreOpen(false); } },
-              { label: t('aiSettings'), icon: Sparkles, onClick: () => { setShowAISettingsPage(true); setIsMobileMoreOpen(false); } },
+              { label: t('generalSettings'), icon: Settings, onClick: () => { setShowAISettingsPage(true); setSettingsTab('general'); setIsMobileMoreOpen(false); } },
+              { label: t('aiSettings'), icon: Sparkles, onClick: () => { setShowAISettingsPage(true); setSettingsTab('ai'); setIsMobileMoreOpen(false); } },
             ].map(({ label, icon: Icon, onClick }) => (
               <button
                 key={label}
@@ -1559,13 +1555,7 @@ export default function WorkspacePage() {
         </div>
       )}
 
-      {/* Settings Dialog */}
-      <SettingsDialog
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        theme={theme}
-        onChangeTheme={setTheme}
-      />
+
 
       {/* Export / Import Dialog */}
       {project && storage && (

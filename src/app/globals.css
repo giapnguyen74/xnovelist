@@ -120,7 +120,7 @@ body {
 
 /* Highlight decorations */
 .character-highlight {
-  border-bottom: 2px dashed #9f7aea;
+  border-bottom: 1.5px dotted #8e8e8e;
   cursor: pointer;
 }
 

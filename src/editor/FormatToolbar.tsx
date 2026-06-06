@@ -16,7 +16,9 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
-  Sparkles
+  Sparkles,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { TypographySettings } from '../storage/schemas';
 import { Editor } from '@tiptap/react';
@@ -31,6 +33,8 @@ interface FormatToolbarProps {
   aiLevel?: number;
   isAIPanelOpen?: boolean;
   onToggleAIPanel?: () => void;
+  highlightBibleRefs?: boolean;
+  onToggleHighlightBibleRefs?: () => void;
 }
 
 export default function FormatToolbar({
@@ -42,6 +46,8 @@ export default function FormatToolbar({
   aiLevel = 0,
   isAIPanelOpen = false,
   onToggleAIPanel,
+  highlightBibleRefs = true,
+  onToggleHighlightBibleRefs,
 }: FormatToolbarProps) {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -254,6 +260,20 @@ export default function FormatToolbar({
           {isDistractionFree ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
         </button>
 
+        {onToggleHighlightBibleRefs && (
+          <button
+            onClick={onToggleHighlightBibleRefs}
+            className={`p-1.5 rounded transition-colors cursor-pointer ${
+              highlightBibleRefs
+                ? 'bg-[var(--accent)] text-white'
+                : 'hover:bg-[var(--border)] text-[var(--foreground)] opacity-60'
+            }`}
+            title={highlightBibleRefs ? "Hide Story Bible Highlights" : "Show Story Bible Highlights"}
+          >
+            {highlightBibleRefs ? <Eye size={16} /> : <EyeOff size={16} />}
+          </button>
+        )}
+
         {aiLevel >= 1 && onToggleAIPanel && (
           <button
             onClick={onToggleAIPanel}
@@ -271,7 +291,7 @@ export default function FormatToolbar({
       {isPopoverOpen && (
         <div
           ref={popoverRef}
-          className="absolute right-2 top-12 z-50 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded-none shadow-xl p-5 w-[26rem] md:w-[28rem] space-y-4 animate-fade-in select-none text-[var(--foreground)]"
+          className="absolute right-2 top-12 z-50 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded-none shadow-xl p-5 w-[26rem] md:w-[28rem] max-h-[80vh] overflow-y-auto pb-8 space-y-4 animate-fade-in select-none text-[var(--foreground)]"
         >
           <div className="text-[10px] font-extrabold uppercase tracking-widest opacity-60 border-b border-[var(--border)] pb-2 mb-3">
             {t('typographySettings')}

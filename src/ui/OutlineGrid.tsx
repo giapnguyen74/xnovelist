@@ -10,7 +10,6 @@ interface OutlineGridProps {
   chaptersWithHistory: Set<string>;
   onSelectChapter: (id: string) => void;
   onCreateChapter: () => void;
-  onRenameChapter: (id: string, title: string) => void;
   onUpdateChapterSynopsis: (id: string, synopsis: string) => void;
   onUpdateChapterStatus: (id: string, status: Chapter['status']) => void;
   onDeleteChapter: (id: string) => void;
@@ -25,7 +24,6 @@ export default function OutlineGrid({
   chaptersWithHistory,
   onSelectChapter,
   onCreateChapter,
-  onRenameChapter,
   onUpdateChapterSynopsis,
   onUpdateChapterStatus,
   onDeleteChapter,
@@ -33,9 +31,6 @@ export default function OutlineGrid({
   onOpenHistory,
 }: OutlineGridProps) {
   const { t } = useTranslation();
-  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
-  const [editingTitleValue, setEditingTitleValue] = useState('');
-  
   const [editingSynId, setEditingSynId] = useState<string | null>(null);
   const [editingSynValue, setEditingSynValue] = useState('');
 
@@ -65,18 +60,7 @@ export default function OutlineGrid({
     setDraggedIndex(null);
   };
 
-  // Inline Title editing
-  const startEditingTitle = (chapter: Chapter) => {
-    setEditingTitleId(chapter.id);
-    setEditingTitleValue(chapter.title);
-  };
 
-  const commitTitle = (id: string) => {
-    if (editingTitleValue.trim()) {
-      onRenameChapter(id, editingTitleValue.trim());
-    }
-    setEditingTitleId(null);
-  };
 
   // Inline Synopsis editing
   const startEditingSynopsis = (chapter: Chapter) => {
@@ -132,25 +116,9 @@ export default function OutlineGrid({
                       <span className="text-[10px] font-bold font-mono text-[var(--accent)] opacity-60 select-none">
                         Ch.{index + 1}
                       </span>
-                      {editingTitleId === chapter.id ? (
-                        <input
-                          type="text"
-                          value={editingTitleValue}
-                          onChange={(e) => setEditingTitleValue(e.target.value)}
-                          onBlur={() => commitTitle(chapter.id)}
-                          onKeyDown={(e) => e.key === 'Enter' && commitTitle(chapter.id)}
-                          autoFocus
-                          className="w-full px-2 py-1 rounded-none border border-[var(--border)] bg-transparent text-[var(--foreground)] text-sm font-serif font-bold focus:outline-none focus:border-[var(--accent)]"
-                        />
-                      ) : (
-                        <h3
-                          onClick={() => startEditingTitle(chapter)}
-                          className="font-serif font-bold text-sm text-[var(--foreground)] group-hover:text-[var(--accent)] transition-colors line-clamp-1 cursor-text hover:underline"
-                          title={t('renameChapter')}
-                        >
-                          {chapter.title}
-                        </h3>
-                      )}
+                      <h3 className="font-serif font-bold text-sm text-[var(--foreground)] transition-colors line-clamp-1 select-none">
+                        {chapter.title}
+                      </h3>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">

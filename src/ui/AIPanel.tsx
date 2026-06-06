@@ -29,8 +29,9 @@ export default function AIPanel({
     return false;
   };
 
-  const activeProviderId = workspaceAI.defaultProviderId ||
-    (['openai', 'anthropic', 'openrouter', 'local'] as const).find(isReady);
+  const activeProviderId = (workspaceAI.defaultProviderId && workspaceAI.defaultProviderId !== 'openai' && workspaceAI.defaultProviderId !== 'anthropic')
+    ? workspaceAI.defaultProviderId
+    : (['openrouter', 'local'] as const).find(isReady);
 
   const hasActiveProvider = !!activeProviderId;
   const activeProviderConfig = activeProviderId ? (workspaceAI.providers as Record<string, any>)[activeProviderId] : null;

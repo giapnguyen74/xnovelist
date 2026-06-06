@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit3, ArrowUp, ArrowDown, Search, ChevronDown, ChevronRight, Users, MapPin, Feather, Compass } from 'lucide-react';
+import { Plus, Trash2, Search, ChevronDown, ChevronRight, Users, MapPin, Feather, Compass } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { Chapter, Character, Location } from '../storage/schemas';
 
@@ -10,7 +10,7 @@ interface ChapterListProps {
   wordCounts: Record<string, number>;
   onSelectChapter: (id: string) => void;
   onCreateChapter: () => void;
-  onRenameChapter: (id: string, newTitle: string) => void;
+
   onDeleteChapter: (id: string) => void;
   onReorderChapters: (newOrder: string[]) => void;
   
@@ -27,7 +27,6 @@ export default function ChapterList({
   wordCounts,
   onSelectChapter,
   onCreateChapter,
-  onRenameChapter,
   onDeleteChapter,
   onReorderChapters,
   characters = [],
@@ -35,8 +34,7 @@ export default function ChapterList({
   onSelectBibleItem,
 }: ChapterListProps) {
   const { t } = useTranslation();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
+
   
   const [sidebarTab, setSidebarTab] = useState<'outline' | 'bible'>('outline');
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,30 +49,9 @@ export default function ChapterList({
     .map((id) => chapters.find((c) => c.id === id))
     .filter((c): c is Chapter => !!c);
 
-  const handleStartRename = (c: Chapter, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingId(c.id);
-    setEditTitle(c.title);
-  };
 
-  const handleSaveRename = (id: string) => {
-    if (editTitle.trim()) {
-      onRenameChapter(id, editTitle.trim());
-    }
-    setEditingId(null);
-  };
 
-  const handleMove = (index: number, direction: 'up' | 'down', e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newOrder = [...chapterOrder];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex >= 0 && targetIndex < newOrder.length) {
-      const temp = newOrder[index];
-      newOrder[index] = newOrder[targetIndex];
-      newOrder[targetIndex] = temp;
-      onReorderChapters(newOrder);
-    }
-  };
+
 
   return (
     <div className="flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border)] select-none">
@@ -134,56 +111,13 @@ export default function ChapterList({
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      {editingId === chapter.id ? (
-                        <input
-                          type="text"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          onBlur={() => handleSaveRename(chapter.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveRename(chapter.id);
-                            if (e.key === 'Escape') setEditingId(null);
-                          }}
-                          className="flex-1 bg-white text-black text-sm px-2 py-0.5 rounded border border-[var(--accent)] focus:outline-none"
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <span className="font-medium text-sm truncate flex-1 pr-2 flex items-center gap-1.5">
-                          <span className={`text-[10px] font-bold font-mono shrink-0 ${isActive ? 'opacity-60' : 'opacity-40'}`}>Ch.{index + 1}</span>
-                          <span className="truncate">{chapter.title}</span>
-                        </span>
-                      )}
+                      <span className="font-medium text-sm truncate flex-1 pr-2 flex items-center gap-1.5">
+                        <span className={`text-[10px] font-bold font-mono shrink-0 ${isActive ? 'opacity-60' : 'opacity-40'}`}>Ch.{index + 1}</span>
+                        <span className="truncate">{chapter.title}</span>
+                      </span>
 
                       <div className="flex sm:hidden sm:group-hover:flex items-center gap-1">
-                        {index > 0 && (
-                          <button
-                            onClick={(e) => handleMove(index, 'up', e)}
-                            className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
-                              isActive ? 'text-white' : 'text-[var(--foreground)] opacity-70'
-                            }`}
-                          >
-                            <ArrowUp size={14} />
-                          </button>
-                        )}
-                        {index < sortedChapters.length - 1 && (
-                          <button
-                            onClick={(e) => handleMove(index, 'down', e)}
-                            className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
-                              isActive ? 'text-white' : 'text-[var(--foreground)] opacity-70'
-                            }`}
-                          >
-                            <ArrowDown size={14} />
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => handleStartRename(chapter, e)}
-                          className={`p-0.5 rounded hover:bg-black/10 transition-colors ${
-                            isActive ? 'text-white' : 'text-[var(--foreground)] opacity-70'
-                          }`}
-                        >
-                          <Edit3 size={14} />
-                        </button>
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
