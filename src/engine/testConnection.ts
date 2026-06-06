@@ -48,17 +48,13 @@ export async function testConnection(
 
     // 1. Prepare Request details based on the selected provider
     if (providerId === 'openai') {
-      const isOAuth = !!config.accessToken;
       endpoint = 'https://api.openai.com/v1/chat/completions';
       modelId = overrides?.modelId || config.defaultModel || 'gpt-4o-mini';
 
-      if (isOAuth) {
-        headers['Authorization'] = `Bearer ${config.accessToken}`;
-      } else if (config.apiKey) {
-        headers['Authorization'] = `Bearer ${config.apiKey}`;
-      } else {
-        return { ok: false, error: 'Authentication failed. Sign in again or re-paste your key.' };
+      if (!config.apiKey) {
+        return { ok: false, error: 'Authentication failed. Re-paste your key.' };
       }
+      headers['Authorization'] = `Bearer ${config.apiKey}`;
 
       body = {
         model: modelId,
@@ -74,15 +70,10 @@ export async function testConnection(
       modelId = overrides?.modelId || config.defaultModel || 'claude-3-5-haiku-20241022';
 
       headers['anthropic-version'] = '2023-06-01';
-      if (config.accessToken) {
-        // OAuth-issued Bearer tokens against api.anthropic.com require this
-        // beta header (the path Claude Code uses). Without it the messages
-        // endpoint rejects the token with 401 even when it's valid.
-        headers['anthropic-beta'] = 'oauth-2025-04-20';
-        headers['Authorization'] = `Bearer ${config.accessToken}`;
-      } else {
-        return { ok: false, error: 'Authentication failed. Sign in again or re-paste your key.' };
+      if (!config.apiKey) {
+        return { ok: false, error: 'Authentication failed. Re-paste your key.' };
       }
+      headers['x-api-key'] = config.apiKey;
 
       body = {
         model: modelId,

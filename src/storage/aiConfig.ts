@@ -9,20 +9,13 @@ import { ProjectStorage } from './ProjectStorage';
  *      if unset.
  */
 export interface OpenAIProviderConfig {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;        // epoch ms
-  identity?: string;        // email or account label
+  apiKey: string;
   defaultModel?: string;
   fastModel?: string;
-  apiKey?: string;          // API key fallback path
 }
 
 export interface AnthropicProviderConfig {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-  identity?: string;
+  apiKey: string;
   defaultModel?: string;
   fastModel?: string;
 }

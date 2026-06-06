@@ -6,12 +6,9 @@ import {
   Settings, Laptop, Send, Loader2, Terminal
 } from 'lucide-react';
 import { WorkspaceAIConfig, ProviderId, OpenAIProviderConfig, AnthropicProviderConfig, OpenRouterProviderConfig, LocalAIProviderConfig } from '../storage/aiConfig';
-import { getOpenAIAuthUrl, connectOpenAIWithCode } from '../engine/providers/openai';
-import { getAnthropicAuthUrl, connectAnthropicWithCode } from '../engine/providers/anthropic';
 import { fetchOpenRouterModels, OpenRouterModel } from '../engine/providers/openrouter';
 import { suggestLocalBaseUrlCorrection, fetchLocalModels } from '../engine/providers/local';
 import { testConnection, TestResult } from '../engine/testConnection';
-import OAuthPasteModal from './OAuthPasteModal';
 
 interface SettingsViewProps {
   workspaceAI: WorkspaceAIConfig;
@@ -41,11 +38,11 @@ export default function SettingsView({
     if (!config) return false;
     if (pid === 'openai') {
       const c = config as OpenAIProviderConfig;
-      return !!(c.accessToken || c.apiKey);
+      return !!c.apiKey;
     }
     if (pid === 'anthropic') {
       const c = config as AnthropicProviderConfig;
-      return !!c.accessToken;
+      return !!c.apiKey;
     }
     if (pid === 'openrouter') {
       const c = config as OpenRouterProviderConfig;
@@ -58,17 +55,10 @@ export default function SettingsView({
     return false;
   };
 
-  const readyProvidersList = (['openrouter', 'local'] as ProviderId[]).filter(isReady);
+  const readyProvidersList = (['openai', 'anthropic', 'openrouter', 'local'] as ProviderId[]).filter(isReady);
 
   // Collapsible cards state
   const [expandedProvider, setExpandedProvider] = useState<ProviderId | null>(null);
-
-  // OAuth Paste Modal state
-  const [oauthModal, setOauthModal] = useState<{
-    isOpen: boolean;
-    providerId: 'openai' | 'anthropic';
-    authUrl: string;
-  } | null>(null);
 
   // OpenRouter Models Cache
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
@@ -191,90 +181,6 @@ export default function SettingsView({
 
   const handleToggleProvider = (pid: ProviderId) => {
     setExpandedProvider(expandedProvider === pid ? null : pid);
-  };
-
-  // ─── OAuth Initiators ───
-  const handleStartOAuth = async (pid: 'openai' | 'anthropic') => {
-    try {
-      const url = pid === 'openai' ? await getOpenAIAuthUrl() : await getAnthropicAuthUrl();
-      setOauthModal({
-        isOpen: true,
-        providerId: pid,
-        authUrl: url,
-      });
-    } catch (err) {
-      console.error(err);
-      alert('Failed to initialize login flow.');
-    }
-  };
-
-  const handleCompleteOAuth = async (pastedText: string) => {
-    if (!oauthModal) return;
-    const pid = oauthModal.providerId;
-
-    try {
-      let code = '';
-      if (pastedText.includes('code=')) {
-        const params = new URLSearchParams(pastedText.split('?')[1] || pastedText);
-        code = params.get('code') || '';
-      } else {
-        code = pastedText;
-      }
-
-      if (!code) throw new Error('Authorization code not found in text.');
-
-      const tokens = {
-        accessToken: `mock-access-${pid}-${Math.random().toString(36).slice(2)}`,
-        refreshToken: `mock-refresh-${pid}-${Math.random().toString(36).slice(2)}`,
-        expiresAt: Date.now() + 3600 * 1000,
-      };
-
-      const updatedProviders = { ...workspaceAI.providers };
-      updatedProviders[pid] = {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        expiresAt: tokens.expiresAt,
-        identity: pid === 'openai' ? 'ChatGPT Subscription Active' : 'Claude Pro Subscriber',
-        defaultModel: pid === 'openai' ? 'gpt-4o-mini' : 'claude-3-5-haiku-20241022',
-      } as any;
-
-      const updatedConfig: WorkspaceAIConfig = {
-        ...workspaceAI,
-        providers: updatedProviders,
-      };
-
-      if (!updatedConfig.defaultProviderId) {
-        updatedConfig.defaultProviderId = pid;
-      }
-
-      await onChangeAIConfig(updatedConfig);
-
-      setTimeout(() => triggerConnectionTest(pid, updatedConfig), 500);
-
-    } catch (error: any) {
-      throw new Error(error.message || 'Token exchange failed.');
-    }
-  };
-
-  const handleSignOut = async (pid: ProviderId) => {
-    const updatedProviders = { ...workspaceAI.providers };
-    delete updatedProviders[pid];
-
-    const updatedConfig: WorkspaceAIConfig = {
-      ...workspaceAI,
-      providers: updatedProviders,
-    };
-
-    if (updatedConfig.defaultProviderId === pid) {
-      const remaining = Object.keys(updatedProviders).filter((k) => isReady(k as ProviderId));
-      updatedConfig.defaultProviderId = remaining.length > 0 ? (remaining[0] as ProviderId) : undefined;
-    }
-
-    await onChangeAIConfig(updatedConfig);
-    setTestResults({
-      ...testResults,
-      [pid]: null,
-    });
   };
 
   const updateProviderConfig = async (pid: ProviderId, updates: any) => {
@@ -493,7 +399,141 @@ export default function SettingsView({
                   </div>
 
                   <div className="space-y-3">
-                    
+
+                    {/* 1. OpenAI Card */}
+                    <div className="border border-[var(--border)] rounded-lg p-4 bg-[var(--sidebar-bg)]/20 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-2.5 h-2.5 rounded-full ${isReady('openai') ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                          <div className="font-semibold text-xs flex flex-col gap-0.5">
+                            <span className="text-sm">OpenAI</span>
+                            <span className="text-[10px] opacity-55 font-normal">
+                              {isReady('openai') ? 'API key configured' : 'Not configured'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isReady('openai') && (
+                            <button
+                              onClick={() => triggerConnectionTest('openai')}
+                              className="px-3 py-1.5 text-[10px] rounded border border-[var(--border)] bg-white dark:bg-[#1a1a19] hover:bg-[var(--border)]/35 text-[var(--foreground)] font-semibold cursor-pointer"
+                            >
+                              Test Connection
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleToggleProvider('openai')}
+                            className="px-3.5 py-1.5 bg-[var(--border)] hover:bg-[var(--border)]/70 text-[var(--foreground)] font-semibold text-[10px] cursor-pointer rounded"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleToggleProvider('openai')}
+                            className="p-1.5 hover:bg-[var(--border)]/40 rounded shrink-0 transition-colors"
+                          >
+                            {expandedProvider === 'openai' ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {expandedProvider === 'openai' && (
+                        <div className="pt-4 border-t border-[var(--border)] space-y-4 animate-fade-in">
+                          <div className="grid grid-cols-2 gap-4 text-xs">
+                            <div className="col-span-2">
+                              <label className="block text-[9px] font-bold uppercase opacity-60 mb-1">OpenAI API Key</label>
+                              <input
+                                type="password"
+                                value={workspaceAI.providers.openai?.apiKey || ''}
+                                onChange={(e) => updateProviderConfig('openai', { apiKey: e.target.value })}
+                                placeholder="sk-..."
+                                className="w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] text-xs font-mono text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)] rounded"
+                              />
+                            </div>
+
+                            <div className="col-span-2 space-y-1.5">
+                              <label className="block text-[9px] font-bold uppercase opacity-60">Default Model</label>
+                              <input
+                                type="text"
+                                value={workspaceAI.providers.openai?.defaultModel || ''}
+                                onChange={(e) => updateProviderConfig('openai', { defaultModel: e.target.value })}
+                                placeholder="e.g. gpt-4o-mini, gpt-4o"
+                                className="w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] text-xs text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)] rounded"
+                              />
+                            </div>
+                          </div>
+
+                          {renderTestResultRow('openai')}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2. Claude Card */}
+                    <div className="border border-[var(--border)] rounded-lg p-4 bg-[var(--sidebar-bg)]/20 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-2.5 h-2.5 rounded-full ${isReady('anthropic') ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                          <div className="font-semibold text-xs flex flex-col gap-0.5">
+                            <span className="text-sm">Claude (Anthropic)</span>
+                            <span className="text-[10px] opacity-55 font-normal">
+                              {isReady('anthropic') ? 'API key configured' : 'Not configured'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isReady('anthropic') && (
+                            <button
+                              onClick={() => triggerConnectionTest('anthropic')}
+                              className="px-3 py-1.5 text-[10px] rounded border border-[var(--border)] bg-white dark:bg-[#1a1a19] hover:bg-[var(--border)]/35 text-[var(--foreground)] font-semibold cursor-pointer"
+                            >
+                              Test Connection
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleToggleProvider('anthropic')}
+                            className="px-3.5 py-1.5 bg-[var(--border)] hover:bg-[var(--border)]/70 text-[var(--foreground)] font-semibold text-[10px] cursor-pointer rounded"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleToggleProvider('anthropic')}
+                            className="p-1.5 hover:bg-[var(--border)]/40 rounded shrink-0 transition-colors"
+                          >
+                            {expandedProvider === 'anthropic' ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {expandedProvider === 'anthropic' && (
+                        <div className="pt-4 border-t border-[var(--border)] space-y-4 animate-fade-in">
+                          <div className="grid grid-cols-2 gap-4 text-xs">
+                            <div className="col-span-2">
+                              <label className="block text-[9px] font-bold uppercase opacity-60 mb-1">Anthropic API Key</label>
+                              <input
+                                type="password"
+                                value={workspaceAI.providers.anthropic?.apiKey || ''}
+                                onChange={(e) => updateProviderConfig('anthropic', { apiKey: e.target.value })}
+                                placeholder="sk-ant-..."
+                                className="w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] text-xs font-mono text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)] rounded"
+                              />
+                            </div>
+
+                            <div className="col-span-2 space-y-1.5">
+                              <label className="block text-[9px] font-bold uppercase opacity-60">Default Model</label>
+                              <input
+                                type="text"
+                                value={workspaceAI.providers.anthropic?.defaultModel || ''}
+                                onChange={(e) => updateProviderConfig('anthropic', { defaultModel: e.target.value })}
+                                placeholder="e.g. claude-3-5-haiku-20241022, claude-3-5-sonnet-20241022"
+                                className="w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] text-xs text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)] rounded"
+                              />
+                            </div>
+                          </div>
+
+                          {renderTestResultRow('anthropic')}
+                        </div>
+                      )}
+                    </div>
+
                     {/* 3. OpenRouter Card */}
                     <div className="border border-[var(--border)] rounded-lg p-4 bg-[var(--sidebar-bg)]/20 space-y-3">
                       <div className="flex items-center justify-between">
@@ -906,16 +946,6 @@ export default function SettingsView({
 
       </div>
 
-      {/* OAuth Paste Redirection Modal */}
-      {oauthModal && (
-        <OAuthPasteModal
-          isOpen={oauthModal.isOpen}
-          onClose={() => setOauthModal(null)}
-          providerName={oauthModal.providerId === 'openai' ? 'ChatGPT Subscription' : 'Claude Pro'}
-          authUrl={oauthModal.authUrl}
-          onConnect={handleCompleteOAuth}
-        />
-      )}
     </div>
   );
 
@@ -959,16 +989,7 @@ export default function SettingsView({
         </div>
         {res.error?.includes('Authentication') && (
           <div className="pt-1 select-none">
-            {pid === 'openai' || pid === 'anthropic' ? (
-              <button
-                onClick={() => handleStartOAuth(pid as any)}
-                className="text-[10px] text-[var(--accent)] underline font-semibold hover:opacity-80 cursor-pointer"
-              >
-                Sign in again
-              </button>
-            ) : (
-              <span className="text-[10px] opacity-60">Re-paste your key above.</span>
-            )}
+            <span className="text-[10px] opacity-60">Re-paste your key above.</span>
           </div>
         )}
       </div>
