@@ -59,10 +59,10 @@ export default function FlashPage({ onDismiss }: FlashPageProps) {
   const enterText = lang === 'vi' ? 'Bắt đầu viết' : 'Enter Workspace';
 
   return (
-    <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-gradient-to-br from-[#0c0c0d] via-[#141416] to-[#0a0a0b] text-white select-none overflow-hidden font-sans">
+    <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[var(--editor-bg)] text-[var(--foreground)] select-none overflow-hidden font-sans">
       {/* Decorative Radial glow behind */}
       <div 
-        className="absolute w-[500px] h-[500px] rounded-full blur-3xl opacity-20 pointer-events-none transition-all duration-1000"
+        className="absolute w-[500px] h-[500px] rounded-full blur-3xl opacity-10 pointer-events-none transition-all duration-1000"
         style={{
           background: 'radial-gradient(circle, var(--accent) 0%, transparent 70%)',
           transform: 'translate(-50%, -50%)',
@@ -75,12 +75,12 @@ export default function FlashPage({ onDismiss }: FlashPageProps) {
       <div className="relative z-10 max-w-md w-full px-6 flex flex-col items-center text-center space-y-8 animate-fade-in">
         {/* App Logo */}
         <div className="relative group">
-          <div className="absolute -inset-1.5 bg-gradient-to-r from-[var(--accent)] to-[#a855f7] rounded-3xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
-          <div className="relative bg-[#1a1a1e] p-4 rounded-3xl border border-white/5 shadow-2xl flex items-center justify-center">
+          <div className="absolute -inset-1.5 bg-gradient-to-r from-[var(--accent)] to-[#a855f7] rounded-3xl blur opacity-10 group-hover:opacity-25 transition duration-1000 group-hover:duration-200" />
+          <div className="relative bg-[var(--background)] p-4 rounded-3xl border border-[var(--border)] shadow-xl flex items-center justify-center">
             <img 
               src="logo.png" 
               alt="XNovelist Logo" 
-              className="h-20 w-20 object-contain drop-shadow-[0_0_15px_rgba(var(--accent-rgb),0.3)] animate-float"
+              className="h-20 w-20 object-contain drop-shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)] animate-float"
               onError={(e) => {
                 // Fallback to Lucide if image fails
                 e.currentTarget.style.display = 'none';
@@ -98,14 +98,14 @@ export default function FlashPage({ onDismiss }: FlashPageProps) {
 
         {/* Title & Slogan */}
         <div className="space-y-3">
-          <h1 className="text-4xl font-extrabold tracking-widest bg-gradient-to-r from-white via-neutral-200 to-neutral-400 bg-clip-text text-transparent uppercase">
+          <h1 className="text-4xl font-extrabold tracking-widest text-[var(--foreground)] uppercase">
             XNovelist
           </h1>
-          <p className="text-xs text-neutral-400 font-medium tracking-wide uppercase max-w-xs mx-auto opacity-75">
+          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold tracking-widest uppercase max-w-xs mx-auto opacity-80">
             Local-First · AI-Optional
           </p>
           <div className="h-[1px] w-12 bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent mx-auto my-2" />
-          <p className="text-sm text-neutral-300 leading-relaxed font-serif italic max-w-sm px-2">
+          <p className="text-sm text-[var(--foreground)] opacity-90 leading-relaxed font-serif italic max-w-sm px-2">
             &ldquo;{slogan}&rdquo;
           </p>
         </div>
@@ -114,7 +114,7 @@ export default function FlashPage({ onDismiss }: FlashPageProps) {
         <div className="w-full h-12 flex items-center justify-center">
           {!isReady ? (
             <div className="w-48 space-y-2">
-              <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+              <div className="h-1 w-full bg-[var(--border)]/30 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-[var(--accent)] to-[#a855f7] transition-all duration-75 ease-out rounded-full"
                   style={{ width: `${progress}%` }}
@@ -127,7 +127,7 @@ export default function FlashPage({ onDismiss }: FlashPageProps) {
           ) : (
             <button
               onClick={onDismiss}
-              className="group flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-[var(--accent)] to-[#9333ea] text-white hover:opacity-95 font-semibold rounded-full text-xs transition-all shadow-lg shadow-[var(--accent)]/10 cursor-pointer border border-white/10 scale-100 hover:scale-105 active:scale-95"
+              className="group flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-[var(--accent)] to-[#9333ea] text-white hover:opacity-95 font-semibold rounded-full text-xs transition-all shadow-md shadow-[var(--accent)]/15 cursor-pointer border border-white/10 scale-100 hover:scale-105 active:scale-95"
             >
               <span>{enterText}</span>
               <ArrowRight size={12} className="transition-transform group-hover:translate-x-1" />
@@ -141,7 +141,7 @@ export default function FlashPage({ onDismiss }: FlashPageProps) {
             href="https://github.com/giapnguyen74/xnovelist"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-neutral-400 hover:text-white transition-all cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--border)]/20 hover:bg-[var(--accent)]/10 hover:text-[var(--accent)] text-[var(--foreground)]/70 hover:text-[var(--foreground)] border border-[var(--border)]/40 hover:border-[var(--accent)]/20 transition-all cursor-pointer text-[10px]"
           >
             <GithubIcon size={12} className="opacity-80" />
             <span className="font-mono">github.com/giapnguyen74/xnovelist</span>

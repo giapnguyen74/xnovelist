@@ -52,10 +52,11 @@ export async function testConnection(
       endpoint = 'https://api.openai.com/v1/chat/completions';
       modelId = overrides?.modelId || c.defaultModel || 'gpt-4o-mini';
 
-      if (!c.apiKey) {
+      const apiKey = (c.apiKey || '').trim();
+      if (!apiKey) {
         return { ok: false, error: 'Authentication failed. Re-paste your key.' };
       }
-      headers['Authorization'] = `Bearer ${c.apiKey}`;
+      headers['Authorization'] = `Bearer ${apiKey}`;
 
       body = {
         model: modelId,
@@ -72,10 +73,11 @@ export async function testConnection(
       modelId = overrides?.modelId || c.defaultModel || 'claude-3-5-haiku-20241022';
 
       headers['anthropic-version'] = '2023-06-01';
-      if (!c.apiKey) {
+      const apiKey = (c.apiKey || '').trim();
+      if (!apiKey) {
         return { ok: false, error: 'Authentication failed. Re-paste your key.' };
       }
-      headers['x-api-key'] = c.apiKey;
+      headers['x-api-key'] = apiKey;
 
       body = {
         model: modelId,
@@ -91,10 +93,11 @@ export async function testConnection(
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
       modelId = overrides?.modelId || c.defaultModel || 'google/gemini-2.5-flash';
 
-      if (!c.apiKey) {
+      const apiKey = (c.apiKey || '').trim();
+      if (!apiKey) {
         return { ok: false, error: 'Authentication failed. Sign in again or re-paste your key.' };
       }
-      headers['Authorization'] = `Bearer ${c.apiKey}`;
+      headers['Authorization'] = `Bearer ${apiKey}`;
       headers['HTTP-Referer'] = 'https://xnovelist.app'; // Nice-to-have for OpenRouter rankings
       headers['X-Title'] = 'xnovelist';
 
@@ -120,8 +123,9 @@ export async function testConnection(
       endpoint = `${baseUrl}/chat/completions`;
       modelId = overrides?.modelId || c.defaultModel || '';
 
-      if (c.apiKey) {
-        headers['Authorization'] = `Bearer ${c.apiKey}`;
+      const apiKey = (c.apiKey || '').trim();
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
       }
 
       // Add custom headers if specified

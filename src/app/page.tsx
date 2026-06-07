@@ -17,7 +17,7 @@ import ChapterList from '../editor/ChapterList';
 import EditorCanvas, { EditorCanvasRef } from '../editor/EditorCanvas';
 import BibleWorkspace from '../bible/BibleWorkspace';
 import ExportImportDialog from '../ui/ExportImportDialog';
-import SnapshotHistoryDialog from '../ui/SnapshotHistoryDialog';
+import SnapshotHistoryPanel from '../ui/SnapshotHistoryPanel';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import OutlineGrid from '../ui/OutlineGrid';
 import ProjectSettings from '../ui/ProjectSettings';
@@ -29,6 +29,7 @@ import QuickCreateDialog, { isSmallSelection } from '../ui/QuickCreateDialog';
 import SelectionAIToolbar from '../ui/SelectionAIToolbar';
 import FlashPage from '../ui/FlashPage';
 import { deriveSynopsis } from '../ai/continuity';
+import RestoreDeletedChaptersDialog from '../ui/RestoreDeletedChaptersDialog';
 
 const GithubIcon = ({ size = 16, className = "" }: { size?: number; className?: string }) => (
   <svg 
@@ -116,6 +117,8 @@ export default function WorkspacePage() {
     setHideSelectionToolbar(false);
   }, [selectionText]);
   const editorRef = useRef<EditorCanvasRef>(null);
+  const prevHistoryOpenRef = useRef(false);
+  const prevAIPanelOpenRef = useRef(false);
   const [style, setStyle] = useState<Style>({
     schemaVersion: 1,
     rhythm: { avgSentenceLengthHint: '', paragraphLengthHint: '', rhythmNotes: '' },
@@ -172,7 +175,7 @@ export default function WorkspacePage() {
     sceneDivider: 'asterisk',
   });
 
-  // Load global format from localStorage on mount
+  // Load global format, theme, and auto-snapshot interval from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedFormat = localStorage.getItem('xnovelist-global-format');
@@ -182,6 +185,14 @@ export default function WorkspacePage() {
         } catch {
           // ignore
         }
+      }
+      const savedTheme = localStorage.getItem('xnovelist-theme') as 'light' | 'dark';
+      if (savedTheme) {
+        setTheme(savedTheme);
+      }
+      const savedInterval = localStorage.getItem('xnovelist-snapshot-interval-min');
+      if (savedInterval !== null) {
+        setSnapshotIntervalMinutes(parseInt(savedInterval, 10));
       }
     }
   }, []);
@@ -201,6 +212,8 @@ export default function WorkspacePage() {
   // Modal dialog toggles
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isRestoreDeletedOpen, setIsRestoreDeletedOpen] = useState(false);
+  const [snapshotIntervalMinutes, setSnapshotIntervalMinutes] = useState<number>(30);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [projectDeleteId, setProjectDeleteId] = useState<string | null>(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -368,6 +381,7 @@ export default function WorkspacePage() {
       // phase, so input handlers run first.
       if (deleteConfirmId !== null) { setDeleteConfirmId(null); return; }
       if (projectDeleteId !== null) { setProjectDeleteId(null); return; }
+      if (isRestoreDeletedOpen) { setIsRestoreDeletedOpen(false); return; }
       if (isMobileMoreOpen) { setIsMobileMoreOpen(false); return; }
       if (isMobileSidebarOpen) { setIsMobileSidebarOpen(false); return; }
       if (isExportOpen) { setIsExportOpen(false); return; }
@@ -382,6 +396,7 @@ export default function WorkspacePage() {
   }, [
     deleteConfirmId,
     projectDeleteId,
+    isRestoreDeletedOpen,
     isMobileMoreOpen,
     isMobileSidebarOpen,
     isExportOpen,
@@ -400,20 +415,40 @@ export default function WorkspacePage() {
     } else {
       bodyClass.remove('dark-theme');
     }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('xnovelist-theme', theme);
+    }
   }, [theme]);
 
-  // Interval snapshot — every 30 minutes of active writing the current
+  // Prevent both AIPanel and Snapshot History Panel from being open at the same time
+  // If either panel is opened, close the other panel to avoid workspace cluttering.
+  useEffect(() => {
+    // If AIPanel was just opened, close History Panel
+    if (isAIPanelOpen && !prevAIPanelOpenRef.current) {
+      setIsHistoryOpen(false);
+    }
+    // If History Panel was just opened, close AIPanel
+    else if (isHistoryOpen && !prevHistoryOpenRef.current) {
+      setIsAIPanelOpen(false);
+    }
+
+    prevHistoryOpenRef.current = isHistoryOpen;
+    prevAIPanelOpenRef.current = isAIPanelOpen;
+  }, [isHistoryOpen, isAIPanelOpen]);
+
+  // Interval snapshot — every N minutes of active writing the current
   // chapter is snapshotted to .history. Plan §7.6 calls for this.
   // takeSnapshot() de-dupes identical content via contentHash so an idle
   // tick does not bloat the history.
   useEffect(() => {
-    if (!storage || !project?.activeChapterId) return;
+    if (!storage || !project?.activeChapterId || snapshotIntervalMinutes === 0) return;
+    const intervalMs = snapshotIntervalMinutes * 60 * 1000;
     const id = window.setInterval(() => {
       takeSnapshot(storage, project.activeChapterId, 'interval', 'Auto interval snapshot', undefined, project.id)
         .catch(() => { /* ignore */ });
-    }, 30 * 60 * 1000);
+    }, intervalMs);
     return () => window.clearInterval(id);
-  }, [storage, project?.id, project?.activeChapterId]);
+  }, [storage, project?.id, project?.activeChapterId, snapshotIntervalMinutes]);
 
   // Load selected project data
   const handleOpenProject = async (projId: string, customStore?: ProjectStorage) => {
@@ -706,14 +741,10 @@ export default function WorkspacePage() {
   const handleDeleteChapter = async (id: string) => {
     setDeleteConfirmId(id);
   };
-
   const confirmDeleteChapter = async () => {
     if (!storage || !project || !deleteConfirmId) return;
     const prefix = `projects/${project.id}/`;
     const id = deleteConfirmId;
-
-    await takeSnapshot(storage, id, 'pre-restore', 'Auto backup before deletion', undefined, project.id);
-
     const updatedChapters = chapters.filter((c) => c.id !== id);
     const updatedOrder = project.chapterOrder.filter((chId) => chId !== id);
 
@@ -724,16 +755,22 @@ export default function WorkspacePage() {
 
     const updatedProject = { ...project, activeChapterId: activeId, chapterOrder: updatedOrder };
 
+    // Pre-delete snapshot: capture the chapter's current content BEFORE removing it.
+    // The chapter's `.history/Artifacts/chapter-${id}/` folder is deliberately NOT
+    // deleted below, so this snapshot survives as a recoverable tombstone (Option A).
+    try {
+      await takeSnapshot(storage, id, 'pre-delete', 'Before delete', undefined, project.id);
+    } catch {
+      // best-effort; deletion proceeds even if the snapshot fails
+    }
+
     setChapters(updatedChapters);
     setProject(updatedProject);
     setDeleteConfirmId(null);
 
     await storage.deleteFile(`${prefix}Artifacts/chapter-${id}.md`);
-    try {
-      await storage.deleteFile(`${prefix}Continuity/chapter-${id}.md`);
-    } catch (e) {
-      // ignore if continuity file does not exist
-    }
+    // Note: `.history/Artifacts/chapter-${id}/` is intentionally preserved as a
+    // tombstone so the chapter (incl. its pre-delete snapshot) can be recovered.
     await storage.writeFile(`${prefix}Project.json`, JSON.stringify(updatedProject));
 
     if (activeId) {
@@ -742,6 +779,67 @@ export default function WorkspacePage() {
     } else {
       setActiveChapterMarkdown('');
     }
+  };
+
+  // Restore deleted chapter handler
+  const handleRestoreDeletedChapter = async (id: string, title: string) => {
+    if (!storage || !project) return;
+    const prefix = `projects/${project.id}/`;
+
+    // 1. Read last snapshot content
+    const indexPath = `${prefix}.history/Artifacts/chapter-${id}/index.json`;
+    if (!(await storage.exists(indexPath))) {
+      throw new Error('No history index found for chapter to restore');
+    }
+
+    const indexStr = await storage.readFile(indexPath);
+    if (!indexStr) throw new Error('No history index found for chapter to restore');
+    const indexData = JSON.parse(indexStr);
+    const snaps = indexData.snapshots || [];
+    if (snaps.length === 0) throw new Error('No snapshots found for chapter to restore');
+
+    // Sort by createdAt descending to get the most recent snapshot
+    const sortedSnaps = [...snaps].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const lastSnap = sortedSnaps[0];
+
+    const snapPath = `${prefix}.history/Artifacts/chapter-${id}/${lastSnap.id}.md`;
+    const markdown = await storage.readFile(snapPath) || '';
+
+    // 2. Re-write the active chapter file
+    const contentPath = `${prefix}Artifacts/chapter-${id}.md`;
+    await storage.writeFile(contentPath, markdown);
+
+    // 3. Update project metadata
+    const restoredChapter: Chapter = {
+      id,
+      title,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      synopsis: '',
+      status: 'draft',
+    };
+
+    const existingChapters = project.chapters || [];
+    const updatedChapters = existingChapters.some((c: any) => c.id === id)
+      ? existingChapters.map((c: any) => c.id === id ? { ...c, updatedAt: new Date().toISOString() } : c)
+      : [...existingChapters, restoredChapter];
+
+    const updatedOrder = project.chapterOrder.includes(id)
+      ? project.chapterOrder
+      : [...project.chapterOrder, id];
+
+    const updatedProject = {
+      ...project,
+      activeChapterId: id,
+      chapters: updatedChapters,
+      chapterOrder: updatedOrder,
+    };
+
+    // Update Project.json file
+    await storage.writeFile(`${prefix}Project.json`, JSON.stringify(updatedProject));
+
+    // Reload all project state from Project.json
+    await handleOpenProject(project.id, storage);
   };
 
   // Reorder chapters handler
@@ -985,7 +1083,10 @@ export default function WorkspacePage() {
     const debug = { reasoning: '', raw: '' };
     return {
       storage,
-      project,
+      project: {
+        ...project,
+        chapters,
+      },
       prefix: `projects/${project.id}/`,
       lang: project.language || 'en',
       debug,
@@ -1027,18 +1128,6 @@ export default function WorkspacePage() {
   const handleExecuteWriteOp = async (opId: string, args: unknown): Promise<void> => {
     if (!storage || !project) throw new Error('Open a project first.');
     await executeWriteOp(opId, args, buildToolContext(), workspaceAI);
-    try {
-      await takeSnapshot(
-        storage,
-        project.activeChapterId,
-        'manual',
-        `ai-l1-${opId}`,
-        undefined,
-        project.id
-      );
-    } catch (e) {
-      console.error('Failed to trigger snapshot for write-op:', e);
-    }
   };
 
   if (showFlashPage) {
@@ -1071,6 +1160,11 @@ export default function WorkspacePage() {
         onBack={() => setShowAISettingsPage(false)}
         backLabel={currentProjectId ? "Back to Novel" : "Back to Novels Dashboard"}
         defaultTab={settingsTab}
+        snapshotIntervalMinutes={snapshotIntervalMinutes}
+        onChangeSnapshotInterval={(min) => {
+          setSnapshotIntervalMinutes(min);
+          localStorage.setItem('xnovelist-snapshot-interval-min', String(min));
+        }}
       />
     );
   }
@@ -1470,6 +1564,7 @@ export default function WorkspacePage() {
                   onSelectChapter={handleSelectChapter}
                   onCreateChapter={handleCreateChapter}
                   onDeleteChapter={handleDeleteChapter}
+                  onOpenRestoreDeletedChapters={() => setIsRestoreDeletedOpen(true)}
                   characters={characters.characters}
                   locations={locations.locations}
                   onSelectBibleItem={(type, id) => {
@@ -1504,6 +1599,7 @@ export default function WorkspacePage() {
                     }}
                     onCreateChapter={handleCreateChapter}
                     onDeleteChapter={handleDeleteChapter}
+                    onOpenRestoreDeletedChapters={() => setIsRestoreDeletedOpen(true)}
                     characters={characters.characters}
                     locations={locations.locations}
                     onSelectBibleItem={(type, id) => {
@@ -1532,6 +1628,7 @@ export default function WorkspacePage() {
                   }}
                   onCreateChapter={handleCreateChapter}
                   onDeleteChapter={handleDeleteChapter}
+                  onOpenRestoreDeletedChapters={() => setIsRestoreDeletedOpen(true)}
                   characters={characters.characters}
                   locations={locations.locations}
                   onSelectBibleItem={(type, id) => {
@@ -1619,6 +1716,16 @@ export default function WorkspacePage() {
                 setTranscript={setAiTranscript}
                 selectedActionId={aiPanelSelectedActionId}
                 onSelectActionId={setAiPanelSelectedActionId}
+              />
+              <SnapshotHistoryPanel
+                isOpen={isHistoryOpen}
+                onClose={() => setIsHistoryOpen(false)}
+                storage={storage}
+                projectId={project.id}
+                chapterId={project.activeChapterId}
+                onRestored={(text) => {
+                  setActiveChapterMarkdown(text);
+                }}
               />
             </div>
             {/* Floating Quick Create — shown near small text selections */}
@@ -1824,19 +1931,18 @@ export default function WorkspacePage() {
         />
       )}
 
-      {/* History Snapshots Dialog */}
+      {/* Restore Deleted Chapters Dialog */}
       {project && storage && (
-        <SnapshotHistoryDialog
-          isOpen={isHistoryOpen}
-          onClose={() => setIsHistoryOpen(false)}
+        <RestoreDeletedChaptersDialog
+          isOpen={isRestoreDeletedOpen}
+          onClose={() => setIsRestoreDeletedOpen(false)}
           storage={storage}
           projectId={project.id}
-          chapterId={project.activeChapterId}
-          onRestored={(text) => {
-            setActiveChapterMarkdown(text);
-          }}
+          activeChapterOrder={project.chapterOrder}
+          onRestoreChapter={handleRestoreDeletedChapter}
         />
       )}
+
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

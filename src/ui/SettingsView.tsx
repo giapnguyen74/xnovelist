@@ -18,6 +18,8 @@ interface SettingsViewProps {
   onBack: () => void;
   backLabel?: string;
   defaultTab?: 'general' | 'ai';
+  snapshotIntervalMinutes: number;
+  onChangeSnapshotInterval: (min: number) => void;
 }
 
 export default function SettingsView({
@@ -28,6 +30,8 @@ export default function SettingsView({
   onBack,
   backLabel,
   defaultTab = 'general',
+  snapshotIntervalMinutes,
+  onChangeSnapshotInterval,
 }: SettingsViewProps) {
   const { t, lang, setLang } = useTranslation();
   const [activeTab, setActiveTab] = useState<'general' | 'ai'>(defaultTab);
@@ -365,6 +369,26 @@ export default function SettingsView({
                   >
                     <option value="en">English</option>
                     <option value="vi">Tiếng Việt</option>
+                  </select>
+                </div>
+
+                {/* Auto-snapshot Interval Selector */}
+                <div className="bg-[var(--sidebar-bg)]/20 border border-[var(--border)] p-5 space-y-3 rounded-lg flex flex-col justify-between">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-75">Auto-snapshot every...</label>
+                    <p className="text-[10px] opacity-50">Automatically save backup snapshots of active chapters at regular intervals.</p>
+                  </div>
+                  <select
+                    value={snapshotIntervalMinutes}
+                    onChange={(e) => onChangeSnapshotInterval(parseInt(e.target.value, 10))}
+                    className="w-full px-3 py-2.5 rounded border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-xs focus:outline-none focus:border-[var(--accent)] cursor-pointer"
+                  >
+                    <option value={0}>Off</option>
+                    <option value={5}>5 minutes</option>
+                    <option value={10}>10 minutes</option>
+                    <option value={15}>15 minutes</option>
+                    <option value={30}>30 minutes</option>
+                    <option value={60}>60 minutes</option>
                   </select>
                 </div>
 

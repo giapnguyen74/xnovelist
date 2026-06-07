@@ -221,5 +221,10 @@
   "distractionFree": "Distraction-Free",
   "workspacePrefs": "Preferences",
   "generalSettings": "General Settings",
-  "aiSettings": "AI Settings"
+  "aiSettings": "AI Settings",
+  "restoreDeletedChapter": "Restore Deleted Chapter",
+  "restoreDeletedTitle": "Restore Deleted Chapters",
+  "noDeletedChapters": "No deleted chapters found.",
+  "restoreSuccess": "Chapter restored successfully!",
+  "deletedOn": "Deleted on"
 }

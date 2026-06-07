@@ -4,7 +4,6 @@ import { Download, Upload, FileText, CheckCircle2 } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { ProjectStorage } from '../storage/ProjectStorage';
 import { Document, Packer, Paragraph, HeadingLevel, ImageRun, AlignmentType } from 'docx';
-import { takeSnapshot } from '../storage/snapshots';
 import ConfirmDialog from './ConfirmDialog';
 import { Project } from '../storage/schemas';
 
@@ -112,29 +111,6 @@ export default function ExportImportDialog({
     setPendingImport(null);
 
     try {
-      setStatus(t('takingPreImportSnapshots'));
-
-      // Walk every project currently in storage and snapshot each chapter.
-      const allKeys = await storage.listFiles();
-      // Match either single-project layout (Artifacts/chapter-<id>.md) or
-      // multi-project layout (projects/<pid>/Artifacts/chapter-<id>.md).
-      const chapterPathRe = /^(?:projects\/([^/]+)\/)?Artifacts\/chapter-([^/]+)\.md$/;
-      for (const path of allKeys) {
-        const m = path.match(chapterPathRe);
-        if (!m) continue;
-        const projId = m[1];
-        const chapId = m[2];
-        const content = (await storage.readFile(path)) ?? '';
-        await takeSnapshot(
-          storage,
-          chapId,
-          'pre-import',
-          'Pre-import safety snapshot',
-          content,
-          projId
-        ).catch(() => { /* ignore individual snapshot failures */ });
-      }
-
       setStatus(t('importingBackup'));
       for (const [path, content] of Object.entries(data)) {
         if (path === 'workspace/ai.json') continue;

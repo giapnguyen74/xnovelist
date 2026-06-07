@@ -67,10 +67,11 @@ export async function takeSnapshot(
     contentHash,
   });
 
-  // Strict uniform FIFO pruning: cap the number of snapshots to 50 across ALL types.
-  if (indexData.snapshots.length > RETENTION_CAP) {
-    const overflowCount = indexData.snapshots.length - RETENTION_CAP;
-    const toPrune = indexData.snapshots.slice(0, overflowCount);
+  // FIFO pruning: cap ONLY the number of 'interval' snapshots to 50, exempting other types.
+  const intervalSnaps = indexData.snapshots.filter(s => s.type === 'interval');
+  if (intervalSnaps.length > RETENTION_CAP) {
+    const overflowCount = intervalSnaps.length - RETENTION_CAP;
+    const toPrune = intervalSnaps.slice(0, overflowCount);
     
     // Filter index snapshots list
     const keepList = [];
@@ -128,8 +129,20 @@ export async function restoreSnapshot(
   projectId?: string
 ): Promise<string> {
   const prefix = projectId ? `projects/${projectId}/` : '';
-  // First, take a pre-restore snapshot of the current content before we replace it
-  await takeSnapshot(storage, chapterId, 'pre-restore', `Pre-restore roll back of ${snapshotId}`, undefined, projectId);
+
+  // Enforce self-snapshotting: take a pre-restore snapshot of the active chapter before overwriting.
+  try {
+    await takeSnapshot(
+      storage,
+      chapterId,
+      'pre-restore',
+      `Pre-restore roll back of ${snapshotId}`,
+      undefined,
+      projectId
+    );
+  } catch (err) {
+    console.error('Failed to take pre-restore self-snapshot:', err);
+  }
 
   // Fetch snapshot content
   const snapFilePath = `${prefix}.history/Artifacts/chapter-${chapterId}/${snapshotId}.md`;

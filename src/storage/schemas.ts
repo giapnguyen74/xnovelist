@@ -182,7 +182,7 @@ export type Style = z.infer<typeof StyleSchema>;
 export const SnapshotSchema = z.object({
   id: z.string(),
   chapterId: z.string(),
-  type: z.enum(['manual', 'interval', 'pre-restore', 'pre-import']),
+  type: z.enum(['manual', 'interval', 'pre-restore', 'pre-import', 'pre-delete']),
   label: z.string().optional(),
   markdown: z.string(),
   contentHash: z.string(),
@@ -194,7 +194,7 @@ export type Snapshot = z.infer<typeof SnapshotSchema>;
 export const SnapshotIndexSchema = z.object({
   snapshots: z.array(z.object({
     id: z.string(),
-    type: z.enum(['manual', 'interval', 'pre-restore', 'pre-import']),
+    type: z.enum(['manual', 'interval', 'pre-restore', 'pre-import', 'pre-delete']),
     label: z.string().optional(),
     createdAt: z.string(),
     byteSize: z.number(),

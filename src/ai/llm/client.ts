@@ -91,7 +91,7 @@ export function makeCallModel(
       headers['anthropic-version'] = '2023-06-01';
       // Required for direct browser calls to the Anthropic API.
       headers['anthropic-dangerous-direct-browser-access'] = 'true';
-      headers['x-api-key'] = ap.apiKey;
+      headers['x-api-key'] = (ap.apiKey || '').trim();
       body = {
         model,
         system: req.system,
@@ -105,20 +105,21 @@ export function makeCallModel(
         const lp = p as LocalAIProviderConfig;
         const baseUrl = (lp.baseUrl || '').trim().replace(/\/$/, '');
         endpoint = `${baseUrl}/chat/completions`;
-        if (lp.apiKey) headers['Authorization'] = `Bearer ${lp.apiKey}`;
+        const apiKey = (lp.apiKey || '').trim();
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
         if (lp.headers && typeof lp.headers === 'object') {
           Object.entries(lp.headers).forEach(([k, v]) => (headers[k] = String(v)));
         }
       } else if (pid === 'openrouter') {
         const op = p as OpenRouterProviderConfig;
         endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-        headers['Authorization'] = `Bearer ${op.apiKey}`;
+        headers['Authorization'] = `Bearer ${(op.apiKey || '').trim()}`;
         headers['HTTP-Referer'] = 'https://xnovelist.app';
         headers['X-Title'] = 'xnovelist';
       } else {
         const op = p as OpenAIProviderConfig;
         endpoint = 'https://api.openai.com/v1/chat/completions';
-        headers['Authorization'] = `Bearer ${op.apiKey}`;
+        headers['Authorization'] = `Bearer ${(op.apiKey || '').trim()}`;
       }
       body = {
         model,

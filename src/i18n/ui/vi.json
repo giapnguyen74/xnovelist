@@ -221,5 +221,10 @@
   "distractionFree": "Toàn màn hình",
   "workspacePrefs": "Tùy chỉnh",
   "generalSettings": "Tùy chỉnh chung",
-  "aiSettings": "Cấu hình AI"
+  "aiSettings": "Cấu hình AI",
+  "restoreDeletedChapter": "Khôi phục chương đã xóa",
+  "restoreDeletedTitle": "Khôi phục các chương đã xóa",
+  "noDeletedChapters": "Không tìm thấy chương đã xóa nào.",
+  "restoreSuccess": "Khôi phục chương thành công!",
+  "deletedOn": "Đã xóa vào"
 }
