@@ -25,6 +25,7 @@ import CommandPalette from '../editor/CommandPalette';
 import { WorkspaceAIConfig, loadAIConfig, saveAIConfig, DEFAULT_AI_CONFIG } from '../storage/aiConfig';
 import AIPanel from '../ui/AIPanel';
 import SettingsView from '../ui/SettingsView';
+import QuickCreateDialog, { isSmallSelection } from '../ui/QuickCreateDialog';
 
 interface ProjectListItem {
   id: string;
@@ -1485,6 +1486,14 @@ export default function WorkspacePage() {
                 onExecuteWriteOp={handleExecuteWriteOp}
               />
             </div>
+            {/* Floating Quick Create — shown near small text selections */}
+            {!!project && selectionText.trim() && isSmallSelection(selectionText) && (
+              <QuickCreateDialog
+                selectionText={selectionText}
+                onExecuteWriteOp={handleExecuteWriteOp}
+                onDismiss={() => setSelectionText('')}
+              />
+            )}
           </>
         )}
 

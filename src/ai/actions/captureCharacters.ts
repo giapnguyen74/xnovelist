@@ -55,15 +55,11 @@ export const captureCharacters: Action<CaptureInput> = {
     const existingByName = new Map(existing.map((c) => [c.name.toLowerCase(), c]));
     const list: WriteOpProposal[] = [];
 
-    const quote = prose;
-    const addedAt = Date.now();
-    const evidenceItem = quote.trim() ? [{ chapterId: input.chapterId, quote, addedAt }] : [];
-
     for (const rawItem of parsed.characters) {
       const c = rawItem as Record<string, unknown> | null;
       if (!c || typeof c.name !== 'string' || !c.name.trim()) continue;
-      
-      const draft: CharacterDraft & { evidence: typeof evidenceItem } = {
+
+      const draft: CharacterDraft = {
         name: c.name.trim(),
         aliases: Array.isArray(c.aliases) ? c.aliases.filter((x): x is string => typeof x === 'string') : [],
         role: typeof c.role === 'string' ? c.role : undefined,
@@ -72,7 +68,6 @@ export const captureCharacters: Action<CaptureInput> = {
         fears: Array.isArray(c.fears) ? c.fears.filter((x): x is string => typeof x === 'string') : [],
         speechPatterns: typeof c.speechPatterns === 'string' ? c.speechPatterns : undefined,
         notes: typeof c.notes === 'string' ? c.notes : undefined,
-        evidence: evidenceItem,
       };
 
       const match = existingByName.get(draft.name.toLowerCase());

@@ -2,12 +2,6 @@ import { WriteOp, ToolContext } from '../types';
 import { Location } from '../../storage/schemas';
 import { z } from 'zod';
 
-const evidenceSchema = z.object({
-  chapterId: z.string(),
-  quote: z.string(),
-  addedAt: z.number(),
-});
-
 const locationUpdateArgsSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -16,7 +10,6 @@ const locationUpdateArgsSchema = z.object({
     descriptors: z.array(z.string()).optional(),
     significance: z.string().optional(),
     notes: z.string().optional(),
-    evidence: z.array(evidenceSchema).optional(),
   }),
 });
 
@@ -46,7 +39,7 @@ export const locationUpdate: WriteOp<LocationUpdateArgs> = {
       kind: 'update',
     };
   },
-  async execute(args, ctx) {
+  async execute(args, ctx: ToolContext) {
     let list: Location[] = [];
     try {
       const raw = await ctx.storage.readFile(`${ctx.prefix}Locations.json`);
@@ -66,7 +59,6 @@ export const locationUpdate: WriteOp<LocationUpdateArgs> = {
         descriptors: union(l.descriptors, changes.descriptors),
         significance: l.significance || changes.significance,
         notes: l.notes || changes.notes,
-        evidence: [...(l.evidence || []), ...(changes.evidence || [])],
       };
     });
 

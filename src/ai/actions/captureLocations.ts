@@ -57,24 +57,19 @@ export const captureLocations: Action<CaptureInput> = {
     const existingByName = new Map(existing.map((l) => [l.name.toLowerCase(), l]));
     const list: WriteOpProposal[] = [];
 
-    const quote = prose;
-    const addedAt = Date.now();
-    const evidenceItem = quote.trim() ? [{ chapterId: input.chapterId, quote, addedAt }] : [];
-
     for (const rawItem of parsed.locations) {
       const l = rawItem as Record<string, unknown> | null;
       if (!l || typeof l.name !== 'string' || !l.name.trim()) continue;
-      
+
       const scaleStr = typeof l.scale === 'string' ? l.scale : 'room';
       const scale = SCALES.includes(scaleStr) ? scaleStr : 'room';
-      const draft: LocationDraft & { evidence: typeof evidenceItem } = {
+      const draft: LocationDraft = {
         name: l.name.trim(),
         aliases: Array.isArray(l.aliases) ? l.aliases.filter((x): x is string => typeof x === 'string') : [],
         scale: scale as Location['scale'],
         descriptors: Array.isArray(l.descriptors) ? l.descriptors.filter((x): x is string => typeof x === 'string') : [],
         significance: typeof l.significance === 'string' ? l.significance : undefined,
         notes: typeof l.notes === 'string' ? l.notes : undefined,
-        evidence: evidenceItem,
       };
 
       const match = existingByName.get(draft.name.toLowerCase());

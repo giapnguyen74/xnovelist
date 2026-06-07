@@ -48,6 +48,7 @@ interface TranscriptTurn {
   status: 'loading' | 'success' | 'error';
   error?: string;
   reasoning?: string;
+  elapsedMs?: number;
   proposalResult?: ProposalResult;
   cards?: TranscriptCard[];
 }
@@ -92,7 +93,7 @@ export default function AIPanel({
     }
   }, [transcript]);
 
-  // Set default scope based on selectionText presence
+  // Set default scope based on selectionText presence — only large selections switch to AI selection mode
   useEffect(() => {
     if (selectionText && selectionText.trim()) {
       setScope('selection');
@@ -216,13 +217,16 @@ export default function AIPanel({
 
       const chosen = modelsList.find((m) => m.id === selectedModel);
       const modelOverride = chosen ? { providerId: chosen.providerId, model: chosen.id } : undefined;
+      const t0 = Date.now();
       const res = await runTool(selectedActionId, input, modelOverride);
+      const elapsedMs = Date.now() - t0;
 
       if (!res.ok) {
         updateTurn(turnId, {
           status: 'error',
           error: res.error || 'AI returned an error.',
           reasoning: res.reasoning,
+          elapsedMs,
         });
         return;
       }
@@ -279,6 +283,7 @@ export default function AIPanel({
         proposalResult,
         cards,
         reasoning: res.reasoning,
+        elapsedMs,
       });
 
     } catch (err) {
@@ -392,9 +397,20 @@ export default function AIPanel({
           <Sparkles size={13} className="text-[var(--accent)]" />
           <span>Agent Panel</span>
         </div>
-        <button onClick={onClose} className="text-sm opacity-55 hover:opacity-100 font-bold p-1" title="Close (Esc)">
-          ✕
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowDebug((v) => !v)}
+            className={`uppercase tracking-wider font-semibold text-[8px] px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
+              showDebug ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' : 'opacity-40 hover:opacity-70 hover:bg-[var(--border)]/40'
+            }`}
+            title="Show model reasoning when available"
+          >
+            Debug
+          </button>
+          <button onClick={onClose} className="text-sm opacity-55 hover:opacity-100 font-bold p-1" title="Close (Esc)">
+            ✕
+          </button>
+        </div>
       </div>
 
       {/* Main Panel Content: Split into Transcript (top-scrollable) and Composer (bottom-sticky) */}
@@ -424,6 +440,16 @@ export default function AIPanel({
                       </div>
                     )}
                   </div>
+                  {t.elapsedMs !== undefined && (
+                    <span
+                      className="shrink-0 font-mono text-[8px] px-1 py-0.5 rounded bg-[var(--border)]/30 opacity-70 tabular-nums"
+                      title="Wall-clock time for the LLM response"
+                    >
+                      {t.elapsedMs < 1000
+                        ? `${t.elapsedMs}ms`
+                        : `${(t.elapsedMs / 1000).toFixed(1)}s`}
+                    </span>
+                  )}
                 </div>
 
                 {/* Debug: model thinking (reasoning models) */}
@@ -719,6 +745,7 @@ export default function AIPanel({
               {scope === 'chapter' && ' Select text in the editor for selection actions.'}
             </div>
           </div>
+
         ) : (
           <div className="p-3 border-t border-[var(--border)] bg-black/10 dark:bg-white/5">
             {/* Goal box */}
@@ -828,19 +855,6 @@ export default function AIPanel({
         )}
       </div>
 
-      {/* Footer */}
-      <div className="p-3 border-t border-[var(--border)] shrink-0 flex items-center justify-between text-[9px] opacity-60 bg-black/5 dark:bg-white/5">
-        <span>xnovelist · Level L{workspaceAI.level}</span>
-        <button
-          onClick={() => setShowDebug((v) => !v)}
-          className={`uppercase tracking-wider font-semibold text-[8px] px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
-            showDebug ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' : 'hover:bg-[var(--border)]/40'
-          }`}
-          title="Show model reasoning when available"
-        >
-          Debug
-        </button>
-      </div>
     </div>
   );
 }

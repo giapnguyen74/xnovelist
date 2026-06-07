@@ -1,12 +1,6 @@
-import { WriteOp, ToolContext, LocationDraft } from '../types';
+import { WriteOp, ToolContext } from '../types';
 import { LocationSchema, Location } from '../../storage/schemas';
 import { z } from 'zod';
-
-const evidenceSchema = z.object({
-  chapterId: z.string(),
-  quote: z.string(),
-  addedAt: z.number(),
-});
 
 const locationAddArgsSchema = z.object({
   name: z.string(),
@@ -15,10 +9,11 @@ const locationAddArgsSchema = z.object({
   descriptors: z.array(z.string()).optional(),
   significance: z.string().optional(),
   notes: z.string().optional(),
-  evidence: z.array(evidenceSchema).optional(),
 });
 
-export const locationAdd: WriteOp<LocationDraft & { evidence?: Array<{ chapterId: string; quote: string; addedAt: number }> }> = {
+type LocationAddArgs = z.infer<typeof locationAddArgsSchema>;
+
+export const locationAdd: WriteOp<LocationAddArgs> = {
   id: 'location_add',
   level: 1,
   validate(args) {
@@ -26,7 +21,7 @@ export const locationAdd: WriteOp<LocationDraft & { evidence?: Array<{ chapterId
     if (!res.success) {
       return { ok: false, error: res.error.message };
     }
-    return { ok: true, value: res.data as LocationDraft & { evidence?: Array<{ chapterId: string; quote: string; addedAt: number }> } };
+    return { ok: true, value: res.data };
   },
   describe(args) {
     return {
@@ -39,7 +34,7 @@ export const locationAdd: WriteOp<LocationDraft & { evidence?: Array<{ chapterId
       kind: 'addition',
     };
   },
-  async execute(args, ctx) {
+  async execute(args, ctx: ToolContext) {
     let list: Location[] = [];
     try {
       const raw = await ctx.storage.readFile(`${ctx.prefix}Locations.json`);
@@ -60,7 +55,7 @@ export const locationAdd: WriteOp<LocationDraft & { evidence?: Array<{ chapterId
       significance: args.significance || '',
       inhabitants: [],
       notes: args.notes || '',
-      evidence: args.evidence || [],
+      evidence: [],
     });
 
     list.push(newLoc);

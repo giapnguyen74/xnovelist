@@ -1,12 +1,6 @@
-import { WriteOp, ToolContext, CharacterDraft } from '../types';
+import { WriteOp, ToolContext } from '../types';
 import { CharacterSchema, Character } from '../../storage/schemas';
 import { z } from 'zod';
-
-const evidenceSchema = z.object({
-  chapterId: z.string(),
-  quote: z.string(),
-  addedAt: z.number(),
-});
 
 const characterAddArgsSchema = z.object({
   name: z.string(),
@@ -17,10 +11,11 @@ const characterAddArgsSchema = z.object({
   fears: z.array(z.string()).optional(),
   speechPatterns: z.string().optional(),
   notes: z.string().optional(),
-  evidence: z.array(evidenceSchema).optional(),
 });
 
-export const characterAdd: WriteOp<CharacterDraft & { evidence?: Array<{ chapterId: string; quote: string; addedAt: number }> }> = {
+type CharacterAddArgs = z.infer<typeof characterAddArgsSchema>;
+
+export const characterAdd: WriteOp<CharacterAddArgs> = {
   id: 'character_add',
   level: 1,
   validate(args) {
@@ -28,7 +23,7 @@ export const characterAdd: WriteOp<CharacterDraft & { evidence?: Array<{ chapter
     if (!res.success) {
       return { ok: false, error: res.error.message };
     }
-    return { ok: true, value: res.data as CharacterDraft & { evidence?: Array<{ chapterId: string; quote: string; addedAt: number }> } };
+    return { ok: true, value: res.data };
   },
   describe(args) {
     return {
@@ -41,7 +36,7 @@ export const characterAdd: WriteOp<CharacterDraft & { evidence?: Array<{ chapter
       kind: 'addition',
     };
   },
-  async execute(args, ctx) {
+  async execute(args, ctx: ToolContext) {
     let list: Character[] = [];
     try {
       const raw = await ctx.storage.readFile(`${ctx.prefix}Characters.json`);
@@ -64,7 +59,7 @@ export const characterAdd: WriteOp<CharacterDraft & { evidence?: Array<{ chapter
       speechPatterns: args.speechPatterns || '',
       relationships: [],
       notes: args.notes || '',
-      evidence: args.evidence || [],
+      evidence: [],
     });
 
     list.push(newChar);
