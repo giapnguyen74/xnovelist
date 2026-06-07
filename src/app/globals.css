@@ -129,6 +129,11 @@ body {
   cursor: pointer;
 }
 
+.item-highlight {
+  border-bottom: 2px dotted #a0aec0;
+  cursor: pointer;
+}
+
 /* Custom font utilities — curated set for novel writing */
 .font-merriweather {
   font-family: 'Merriweather', Georgia, serif;

@@ -49,6 +49,13 @@ export interface ToolContext {
   onUpdateStyle?: (style: Style) => void;
   /** Called after every continuity write; the page derives the synopsis cache from the new content. */
   onUpdateContinuity?: (chapterId: string, content: string) => Promise<void>;
+  onReplaceRange?: (
+    chapterId: string,
+    from: number,
+    to: number,
+    text: string,
+    expected?: string
+  ) => Promise<void>;
 
   /** Optional debug sink; `callModel` appends each call's reasoning/raw output. */
   debug?: DebugSink;
@@ -133,7 +140,13 @@ export interface WriteOp<A = unknown> {
 // ---- Level 1 input/output shapes -------------------------------------------
 
 export interface CaptureInput {
-  selection: { text: string; from?: number; to?: number };
+  selection: {
+    text: string;
+    from?: number;
+    to?: number;
+    textBefore?: string;
+    textAfter?: string;
+  };
   chapterId: string;
   hint?: string;
   params?: Record<string, string | number>;

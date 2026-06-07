@@ -8,7 +8,7 @@ import {
 import { useTranslation } from '../i18n/useTranslation';
 import { IndexedDBProjectStorage } from '../storage/IndexedDBProjectStorage';
 import { ProjectStorage } from '../storage/ProjectStorage';
-import { Project, Chapter, Character, Location, Style, CharacterSchema, LocationSchema } from '../storage/schemas';
+import { Project, Chapter, Character, Location, Item, Style, CharacterSchema, LocationSchema, ItemSchema } from '../storage/schemas';
 import { takeSnapshot } from '../storage/snapshots';
 import { runTool, executeWriteOp } from '../ai/runTool';
 import { makeCallModel } from '../ai/llm/client';
@@ -23,9 +23,10 @@ import OutlineGrid from '../ui/OutlineGrid';
 import ProjectSettings from '../ui/ProjectSettings';
 import CommandPalette from '../editor/CommandPalette';
 import { WorkspaceAIConfig, loadAIConfig, saveAIConfig, DEFAULT_AI_CONFIG } from '../storage/aiConfig';
-import AIPanel from '../ui/AIPanel';
+import AIPanel, { TranscriptTurn } from '../ui/AIPanel';
 import SettingsView from '../ui/SettingsView';
 import QuickCreateDialog, { isSmallSelection } from '../ui/QuickCreateDialog';
+import SelectionAIToolbar from '../ui/SelectionAIToolbar';
 import { deriveSynopsis } from '../ai/continuity';
 
 interface ProjectListItem {
@@ -41,10 +42,11 @@ interface ProjectListItem {
 
 export default function WorkspacePage() {
   const { t } = useTranslation();
-  const [selectionText, setSelectionText] = useState<string>('');
   const [storage, setStorage] = useState<ProjectStorage | null>(null);
   const [workspaceAI, setWorkspaceAI] = useState<WorkspaceAIConfig>(DEFAULT_AI_CONFIG);
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
+  const [aiPanelSelectedActionId, setAiPanelSelectedActionId] = useState<string>('');
+  const [hideSelectionToolbar, setHideSelectionToolbar] = useState(false);
   const [showAISettingsPage, setShowAISettingsPage] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'general' | 'ai'>('general');
 
@@ -70,11 +72,30 @@ export default function WorkspacePage() {
     schemaVersion: 1,
     locations: [],
   });
+  const [items, setItems] = useState<{ schemaVersion: 1; items: Item[] }>({
+    schemaVersion: 1,
+    items: [],
+  });
 
   // Lifted selection states for Story Bible quick-nav
   const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
   const [selectedLocId, setSelectedLocId] = useState<string | null>(null);
-  const [bibleTab, setBibleTab] = useState<'characters' | 'locations' | 'style' | 'continuity'>('characters');
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [bibleTab, setBibleTab] = useState<'characters' | 'locations' | 'items' | 'style' | 'continuity'>('characters');
+
+  const [activeSelection, setActiveSelection] = useState<{
+    from: number;
+    to: number;
+    text: string;
+    textBefore: string;
+    textAfter: string;
+  } | null>(null);
+
+  const selectionText = activeSelection?.text || '';
+  useEffect(() => {
+    setHideSelectionToolbar(false);
+  }, [selectionText]);
+  const editorRef = useRef<any>(null);
   const [style, setStyle] = useState<Style>({
     schemaVersion: 1,
     rhythm: { avgSentenceLengthHint: '', paragraphLengthHint: '', rhythmNotes: '' },
@@ -86,6 +107,12 @@ export default function WorkspacePage() {
   });
   const [continuityList, setContinuityList] = useState<Record<string, string>>({});
   const [chaptersWithHistory, setChaptersWithHistory] = useState<Set<string>>(new Set());
+  const [aiTranscript, setAiTranscript] = useState<TranscriptTurn[]>([]);
+
+  // Reset transcript when switching novels
+  useEffect(() => {
+    setAiTranscript([]);
+  }, [project?.id]);
 
   const allSeries = React.useMemo(() => {
     const seriesSet = new Set<string>();
@@ -139,27 +166,7 @@ export default function WorkspacePage() {
     }
   }, []);
 
-  // Track active selection text for AI panel scope.
-  // A non-empty selection always updates. An empty selection only clears when
-  // the editor still holds focus (the user collapsed the caret inside the
-  // prose) — if focus moved into the Agent panel, we keep the last selection so
-  // picking an action/model doesn't wipe the range mid-flow.
-  useEffect(() => {
-    const handleSelectionChange = () => {
-      const sel = window.getSelection()?.toString() || '';
-      if (sel.trim()) {
-        setSelectionText(sel);
-        return;
-      }
-      const ae = document.activeElement as HTMLElement | null;
-      const inEditor = !!ae && (ae.isContentEditable || !!ae.closest?.('.ProseMirror'));
-      if (inEditor) setSelectionText('');
-    };
-    document.addEventListener('selectionchange', handleSelectionChange);
-    return () => {
-      document.removeEventListener('selectionchange', handleSelectionChange);
-    };
-  }, []);
+  // Track active selection text for AI panel scope via EditorCanvas onSelectionChange.
 
   // Modal dialog toggles
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -240,6 +247,7 @@ export default function WorkspacePage() {
         await store.writeFile(`${prefix}Project.json`, JSON.stringify(defaultProject));
         await store.writeFile(`${prefix}Characters.json`, JSON.stringify({ schemaVersion: 1, characters: [] }));
         await store.writeFile(`${prefix}Locations.json`, JSON.stringify({ schemaVersion: 1, locations: [] }));
+        await store.writeFile(`${prefix}Items.json`, JSON.stringify({ schemaVersion: 1, items: [] }));
         await store.writeFile(`${prefix}Style.json`, JSON.stringify({
           schemaVersion: 1,
           rhythm: { avgSentenceLengthHint: '', paragraphLengthHint: '', rhythmNotes: '' },
@@ -452,6 +460,15 @@ export default function WorkspacePage() {
     const styleStr = await activeStore.readFile(`${prefix}Style.json`);
     if (styleStr) setStyle(JSON.parse(styleStr));
 
+    let itemsData: { schemaVersion: 1; items: Item[] } = { schemaVersion: 1, items: [] };
+    try {
+      const itemsStr = await activeStore.readFile(`${prefix}Items.json`);
+      if (itemsStr) itemsData = JSON.parse(itemsStr);
+    } catch (e) {
+      // ignore missing items file for legacy projects
+    }
+    setItems(itemsData);
+
     // Load continuity files
     const contPaths = await activeStore.listFiles(`${prefix}Continuity/`);
     const loadedContinuity: Record<string, string> = {};
@@ -518,6 +535,7 @@ export default function WorkspacePage() {
     await storage.writeFile(`${prefix}Project.json`, JSON.stringify(defaultProject));
     await storage.writeFile(`${prefix}Characters.json`, JSON.stringify({ schemaVersion: 1, characters: [] }));
     await storage.writeFile(`${prefix}Locations.json`, JSON.stringify({ schemaVersion: 1, locations: [] }));
+    await storage.writeFile(`${prefix}Items.json`, JSON.stringify({ schemaVersion: 1, items: [] }));
     await storage.writeFile(`${prefix}Style.json`, JSON.stringify({
       schemaVersion: 1,
       rhythm: { avgSentenceLengthHint: '', paragraphLengthHint: '', rhythmNotes: '' },
@@ -850,9 +868,9 @@ export default function WorkspacePage() {
     return results;
   };
 
-  // Attach selected text as evidence to a story bible character or location
+  // Attach selected text as evidence to a story bible character, location, or item
   const handleAttachEvidence = async (
-    entityType: 'characters' | 'locations',
+    entityType: 'characters' | 'locations' | 'items',
     entityId: string,
     quote: string
   ) => {
@@ -877,7 +895,7 @@ export default function WorkspacePage() {
       });
       setCharacters({ schemaVersion: 1, characters: updatedChars });
       await storage.writeFile(`${prefix}Characters.json`, JSON.stringify({ schemaVersion: 1, characters: updatedChars }));
-    } else {
+    } else if (entityType === 'locations') {
       const updatedLocs = locations.locations.map((loc) => {
         if (loc.id === entityId) {
           return {
@@ -889,6 +907,18 @@ export default function WorkspacePage() {
       });
       setLocations({ schemaVersion: 1, locations: updatedLocs });
       await storage.writeFile(`${prefix}Locations.json`, JSON.stringify({ schemaVersion: 1, locations: updatedLocs }));
+    } else if (entityType === 'items') {
+      const updatedItems = items.items.map((item) => {
+        if (item.id === entityId) {
+          return {
+            ...item,
+            evidence: [...(item.evidence || []), newEvidence],
+          };
+        }
+        return item;
+      });
+      setItems({ schemaVersion: 1, items: updatedItems });
+      await storage.writeFile(`${prefix}Items.json`, JSON.stringify({ schemaVersion: 1, items: updatedItems }));
     }
   };
 
@@ -942,6 +972,15 @@ export default function WorkspacePage() {
       },
       onUpdateContinuity: async (chapterId, content) => {
         await handleUpdateContinuity(chapterId, content);
+      },
+      onReplaceRange: async (chapterId, from, to, text, expected) => {
+        if (chapterId !== project.activeChapterId) {
+          alert("Cannot apply edit: you have switched chapters since this suggestion was made.");
+          return;
+        }
+        if (editorRef.current) {
+          editorRef.current.replaceRange(from, to, text, expected);
+        }
       },
     };
   };
@@ -1436,6 +1475,7 @@ export default function WorkspacePage() {
               <div className="flex-1 overflow-hidden h-full">
                 {project.activeChapterId ? (
                   <EditorCanvas
+                    ref={editorRef}
                     chapterId={project.activeChapterId}
                     chapterIndex={(project.chapterOrder ?? []).indexOf(project.activeChapterId) + 1}
                     initialTitle={chapters.find((c) => c.id === project.activeChapterId)?.title || ''}
@@ -1452,6 +1492,7 @@ export default function WorkspacePage() {
                     onClearJumpToSearchQuery={() => setJumpToSearchQuery(null)}
                     characters={characters.characters}
                     locations={locations.locations}
+                    items={items.items}
                     highlightBibleRefs={project.highlightBibleRefs ?? true}
                     onToggleHighlightBibleRefs={() => handleUpdateProject({ highlightBibleRefs: !(project.highlightBibleRefs ?? true) })}
                     onAttachEvidence={handleAttachEvidence}
@@ -1463,6 +1504,17 @@ export default function WorkspacePage() {
                       setBibleTab('characters');
                       setSelectedCharId(charId);
                     }}
+                    onOpenBibleLocation={(locId) => {
+                      setActiveTab('bible');
+                      setBibleTab('locations');
+                      setSelectedLocId(locId);
+                    }}
+                    onOpenBibleItem={(itemId) => {
+                      setActiveTab('bible');
+                      setBibleTab('items');
+                      setSelectedItemId(itemId);
+                    }}
+                    onSelectionChange={setActiveSelection}
                   />
                 ) : (
                   <div className="h-full w-full flex flex-col items-center justify-center text-xs opacity-50 bg-[var(--editor-bg)]">
@@ -1485,9 +1537,14 @@ export default function WorkspacePage() {
                 project={project}
                 activeChapterMarkdown={activeChapterMarkdown}
                 selectionText={selectionText}
+                activeSelection={activeSelection}
                 activeChapterId={project?.activeChapterId}
                 runTool={handleRunTool}
                 onExecuteWriteOp={handleExecuteWriteOp}
+                transcript={aiTranscript}
+                setTranscript={setAiTranscript}
+                selectedActionId={aiPanelSelectedActionId}
+                onSelectActionId={setAiPanelSelectedActionId}
               />
             </div>
             {/* Floating Quick Create — shown near small text selections */}
@@ -1495,7 +1552,22 @@ export default function WorkspacePage() {
               <QuickCreateDialog
                 selectionText={selectionText}
                 onExecuteWriteOp={handleExecuteWriteOp}
-                onDismiss={() => setSelectionText('')}
+                onDismiss={() => setActiveSelection(null)}
+              />
+            )}
+            {/* Floating AI Toolbar — shown near long text selections for AI Level >= 1 */}
+            {!!project && selectionText.trim() && !isSmallSelection(selectionText) && workspaceAI.level >= 1 && !hideSelectionToolbar && (
+              <SelectionAIToolbar
+                selectionText={selectionText}
+                aiLevel={workspaceAI.level}
+                onSelectAction={(actionId) => {
+                  setAiPanelSelectedActionId(actionId);
+                  setIsAIPanelOpen(true);
+                  setHideSelectionToolbar(true);
+                }}
+                onDismiss={() => {
+                  setHideSelectionToolbar(true);
+                }}
               />
             )}
           </>
@@ -1508,6 +1580,8 @@ export default function WorkspacePage() {
               chapterOrder={project.chapterOrder}
               wordCounts={wordCounts}
               chaptersWithHistory={chaptersWithHistory}
+              projectTitle={project.title}
+              projectAuthor={project.author}
               onSelectChapter={(id) => {
                 handleSelectChapter(id);
                 setActiveTab('editor');
@@ -1534,6 +1608,7 @@ export default function WorkspacePage() {
             <BibleWorkspace
               characters={characters}
               locations={locations}
+              items={items}
               style={style}
               continuityList={continuityList}
               chapters={chapters}
@@ -1544,6 +1619,8 @@ export default function WorkspacePage() {
               onSelectChar={setSelectedCharId}
               selectedLocId={selectedLocId}
               onSelectLoc={setSelectedLocId}
+              selectedItemId={selectedItemId}
+              onSelectItem={setSelectedItemId}
               onUpdateCharacters={async (c) => {
                 setCharacters({ schemaVersion: 1, characters: c });
                 const prefix = `projects/${project.id}/`;
@@ -1553,6 +1630,11 @@ export default function WorkspacePage() {
                 setLocations({ schemaVersion: 1, locations: l });
                 const prefix = `projects/${project.id}/`;
                 await storage.writeFile(`${prefix}Locations.json`, JSON.stringify({ schemaVersion: 1, locations: l }));
+              }}
+              onUpdateItems={async (i) => {
+                setItems({ schemaVersion: 1, items: i });
+                const prefix = `projects/${project.id}/`;
+                await storage.writeFile(`${prefix}Items.json`, JSON.stringify({ schemaVersion: 1, items: i }));
               }}
               onUpdateStyle={async (s) => {
                 setStyle(s);

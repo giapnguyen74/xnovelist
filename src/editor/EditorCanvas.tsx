@@ -1,14 +1,18 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useImperativeHandle } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
 import { useTranslation } from '../i18n/useTranslation';
-import { TypographySettings, Character, Location } from '../storage/schemas';
+import { TypographySettings, Character, Location, Item } from '../storage/schemas';
 import FormatToolbar from './FormatToolbar';
 import { SearchAndReplace } from './SearchAndReplace';
 import FindBar from './FindBar';
 import { TextSelection } from '@tiptap/pm/state';
 import { BibleLinkage } from './bibleLinkage';
+
+export interface EditorCanvasRef {
+  replaceRange: (from: number, to: number, text: string, expected?: string) => boolean;
+}
 
 interface EditorCanvasProps {
   chapterId: string;
@@ -30,13 +34,17 @@ interface EditorCanvasProps {
   onClearJumpToSearchQuery?: () => void;
   characters?: Character[];
   locations?: Location[];
+  items?: Item[];
   highlightBibleRefs?: boolean;
   onToggleHighlightBibleRefs?: () => void;
-  onAttachEvidence?: (entityType: 'characters' | 'locations', entityId: string, quote: string) => void;
+  onAttachEvidence?: (entityType: 'characters' | 'locations' | 'items', entityId: string, quote: string) => void;
   aiLevel?: number;
   isAIPanelOpen?: boolean;
   onToggleAIPanel?: () => void;
   onOpenBibleCharacter?: (charId: string) => void;
+  onOpenBibleLocation?: (locId: string) => void;
+  onOpenBibleItem?: (itemId: string) => void;
+  onSelectionChange?: (sel: { from: number; to: number; text: string; textBefore: string; textAfter: string } | null) => void;
 }
 
 // Manuscript-page math: 250 words/page (double-spaced standard), 200 wpm reading pace.
@@ -52,7 +60,7 @@ const formatReadTime = (minutes: number) => {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 };
 
-export default function EditorCanvas({
+const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(function EditorCanvas({
   chapterId,
   chapterIndex,
   initialTitle,
@@ -69,6 +77,7 @@ export default function EditorCanvas({
   onClearJumpToSearchQuery,
   characters = [],
   locations = [],
+  items = [],
   highlightBibleRefs = true,
   onToggleHighlightBibleRefs,
   onAttachEvidence,
@@ -76,7 +85,10 @@ export default function EditorCanvas({
   isAIPanelOpen = false,
   onToggleAIPanel,
   onOpenBibleCharacter,
-}: EditorCanvasProps) {
+  onOpenBibleLocation,
+  onOpenBibleItem,
+  onSelectionChange,
+}, ref) {
   const { t } = useTranslation();
   const [title, setTitle] = useState(initialTitle);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'unsaved'>('idle');
@@ -101,25 +113,39 @@ export default function EditorCanvas({
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
-  // Character card popup states
-  const [clickedCharacter, setClickedCharacter] = useState<Character | null>(null);
+  // Character/Location/Item card popup states
+  const [clickedEntity, setClickedEntity] = useState<{ type: 'character' | 'location' | 'item'; data: any } | null>(null);
   const [characterCardPosition, setCharacterCardPosition] = useState({ x: 0, y: 0 });
   const [isCharacterCardOpen, setIsCharacterCardOpen] = useState(false);
   const characterCardRef = useRef<HTMLDivElement>(null);
 
-  const handleCharacterHighlightClickRef = useRef<((aliasText: string, event: MouseEvent) => void) | null>(null);
+  const handleHighlightClickRef = useRef<((type: 'character' | 'location' | 'item', aliasText: string, event: MouseEvent) => void) | null>(null);
   useEffect(() => {
-    handleCharacterHighlightClickRef.current = (aliasText: string, event: MouseEvent) => {
-      if (!characters) return;
+    handleHighlightClickRef.current = (type, aliasText, event) => {
       const cleanText = aliasText.trim().toLowerCase();
-      const match = characters.find(char => {
-        const nameMatch = char.name && char.name.trim().toLowerCase() === cleanText;
-        const aliasMatch = Array.isArray(char.aliases) && char.aliases.some((alias: string) => alias && alias.trim().toLowerCase() === cleanText);
-        return nameMatch || aliasMatch;
-      });
+      let match: any = null;
+      if (type === 'character' && characters) {
+        match = characters.find(char => {
+          const nameMatch = char.name && char.name.trim().toLowerCase() === cleanText;
+          const aliasMatch = Array.isArray(char.aliases) && char.aliases.some((alias: string) => alias && alias.trim().toLowerCase() === cleanText);
+          return nameMatch || aliasMatch;
+        });
+      } else if (type === 'location' && locations) {
+        match = locations.find(loc => {
+          const nameMatch = loc.name && loc.name.trim().toLowerCase() === cleanText;
+          const aliasMatch = Array.isArray(loc.aliases) && loc.aliases.some((alias: string) => alias && alias.trim().toLowerCase() === cleanText);
+          return nameMatch || aliasMatch;
+        });
+      } else if (type === 'item' && items) {
+        match = items.find(item => {
+          const nameMatch = item.name && item.name.trim().toLowerCase() === cleanText;
+          const aliasMatch = Array.isArray(item.aliases) && item.aliases.some((alias: string) => alias && alias.trim().toLowerCase() === cleanText);
+          return nameMatch || aliasMatch;
+        });
+      }
 
       if (match) {
-        setClickedCharacter(match);
+        setClickedEntity({ type, data: match });
         
         let posX = event.clientX;
         let posY = event.clientY + 10;
@@ -144,7 +170,7 @@ export default function EditorCanvas({
         setIsCharacterCardOpen(true);
       }
     };
-  }, [characters]);
+  }, [characters, locations, items]);
   
   const [toast, setToast] = useState<string | null>(null);
 
@@ -156,12 +182,14 @@ export default function EditorCanvas({
   const onAttachEvidenceRef = useRef(onAttachEvidence);
   useEffect(() => { onAttachEvidenceRef.current = onAttachEvidence; }, [onAttachEvidence]);
 
-  const handleConfirmAttach = (type: 'characters' | 'locations', id: string) => {
+  const handleConfirmAttach = (type: 'characters' | 'locations' | 'items', id: string) => {
     if (onAttachEvidenceRef.current && selectedEvidenceText.trim()) {
       onAttachEvidenceRef.current(type, id, selectedEvidenceText.trim());
       const name = type === 'characters'
         ? (characters || []).find(c => c.id === id)?.name
-        : (locations || []).find(l => l.id === id)?.name;
+        : type === 'locations'
+          ? (locations || []).find(l => l.id === id)?.name
+          : (items || []).find(i => i.id === id)?.name;
       showToast(`Attached to ${name || 'item'} successfully!`);
     }
   };
@@ -349,6 +377,11 @@ export default function EditorCanvas({
     }
   `;
 
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  useEffect(() => {
+    onSelectionChangeRef.current = onSelectionChange;
+  }, [onSelectionChange]);
+
   // 2. Initialize useEditor ONCE. Deps are [] — the editor instance is
   // preserved across chapter switches AND typography changes. Content
   // swapping for new chapters happens via editor.commands.setContent below.
@@ -371,6 +404,7 @@ export default function EditorCanvas({
       BibleLinkage.configure({
         characters: characters || [],
         locations: locations || [],
+        items: items || [],
         enabled: !!highlightBibleRefs,
       }),
     ],
@@ -396,13 +430,37 @@ export default function EditorCanvas({
         click: (view, event) => {
           const target = event.target as HTMLElement;
           const charHighlight = target.closest('.character-highlight');
+          const locHighlight = target.closest('.location-highlight');
+          const itemHighlight = target.closest('.item-highlight');
           if (charHighlight) {
             const aliasText = charHighlight.textContent || '';
-            handleCharacterHighlightClickRef.current?.(aliasText, event);
+            handleHighlightClickRef.current?.('character', aliasText, event);
+            return true;
+          }
+          if (locHighlight) {
+            const aliasText = locHighlight.textContent || '';
+            handleHighlightClickRef.current?.('location', aliasText, event);
+            return true;
+          }
+          if (itemHighlight) {
+            const aliasText = itemHighlight.textContent || '';
+            handleHighlightClickRef.current?.('item', aliasText, event);
             return true;
           }
           return false;
         }
+      }
+    },
+    onSelectionUpdate: ({ editor }) => {
+      const { state } = editor;
+      const { from, to } = state.selection;
+      if (from === to) {
+        onSelectionChangeRef.current?.(null);
+      } else {
+        const text = state.doc.textBetween(from, to, ' ').trim();
+        const textBefore = state.doc.textBetween(Math.max(0, from - 2000), from, ' ');
+        const textAfter = state.doc.textBetween(to, Math.min(state.doc.content.size, to + 2000), ' ');
+        onSelectionChangeRef.current?.({ from, to, text, textBefore, textAfter });
       }
     },
     onUpdate: ({ editor }) => {
@@ -453,6 +511,22 @@ export default function EditorCanvas({
       }, 700);
     },
   }, []);
+
+  useImperativeHandle(ref, () => ({
+    replaceRange(from: number, to: number, text: string, expected?: string) {
+      if (!editor || editor.isDestroyed) return false;
+      const { state } = editor;
+      if (expected !== undefined) {
+        const currentText = state.doc.textBetween(from, to, ' ').trim();
+        if (currentText !== expected.trim()) {
+          alert("Warning: The text in this area has changed. The AI edit cannot be applied to prevent overwriting your latest changes.");
+          return false;
+        }
+      }
+      editor.commands.insertContentAt({ from, to }, text);
+      return true;
+    }
+  }), [editor]);
 
   // Find-bar close handler — depends on the editor instance.
   const handleCloseFindBar = useCallback(() => {
@@ -613,16 +687,17 @@ export default function EditorCanvas({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [editor, wordCount, onToggleDistractionFree, isFindBarOpen, isEvidenceDialogOpen, isContextMenuOpen, handleCloseFindBar]);
 
-  // Sync BibleLinkage extension state with updates to characters, locations, and settings
+  // Sync BibleLinkage extension state with updates to characters, locations, items, and settings
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
       editor.commands.updateBibleLinkage({
         characters: characters || [],
         locations: locations || [],
+        items: items || [],
         enabled: !!highlightBibleRefs,
       });
     }
-  }, [editor, characters, locations, highlightBibleRefs]);
+  }, [editor, characters, locations, items, highlightBibleRefs]);
 
   // Dismiss context menu on click outside
   useEffect(() => {
@@ -644,13 +719,17 @@ export default function EditorCanvas({
     return () => window.removeEventListener('scroll', handleScroll, true);
   }, [isContextMenuOpen]);
 
-  // Dismiss character card on click outside
+  // Dismiss card on click outside
   useEffect(() => {
     if (!isCharacterCardOpen) return;
     const handleOutsideClick = (e: MouseEvent) => {
       if (characterCardRef.current && !characterCardRef.current.contains(e.target as Node)) {
         const target = e.target as HTMLElement;
-        if (target.closest('.character-highlight')) {
+        if (
+          target.closest('.character-highlight') ||
+          target.closest('.location-highlight') ||
+          target.closest('.item-highlight')
+        ) {
           return;
         }
         setIsCharacterCardOpen(false);
@@ -943,8 +1022,8 @@ export default function EditorCanvas({
         </div>
       )}
 
-      {/* Floating Character Info Card */}
-      {isCharacterCardOpen && clickedCharacter && (
+      {/* Floating Info Card */}
+      {isCharacterCardOpen && clickedEntity && (
         <div
           ref={characterCardRef}
           className="fixed z-50 bg-[var(--editor-bg)] border border-[var(--border)] shadow-2xl p-5 w-80 rounded-none text-[var(--foreground)] animate-fade-in flex flex-col gap-3"
@@ -952,24 +1031,48 @@ export default function EditorCanvas({
         >
           {/* Header */}
           <div className="flex justify-between items-start border-b border-[var(--border)]/40 pb-2">
-            <div>
-              <button
-                onClick={() => {
-                  if (onOpenBibleCharacter) {
-                    onOpenBibleCharacter(clickedCharacter.id);
-                    setIsCharacterCardOpen(false);
-                  }
-                }}
-                className="text-xs font-extrabold uppercase tracking-widest text-[var(--accent)] hover:underline cursor-pointer text-left block bg-transparent border-none p-0 focus:outline-none"
-                title="Open in Story Bible"
-              >
-                {clickedCharacter.name}
-              </button>
-              {clickedCharacter.role && (
-                <span className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold block mt-0.5">
-                  {clickedCharacter.role}
-                </span>
+            <div className="flex items-center gap-3">
+              {clickedEntity.data.avatar && (
+                <img
+                  src={clickedEntity.data.avatar}
+                  className="w-10 h-10 rounded-full object-cover border border-[var(--border)] flex-shrink-0"
+                  alt=""
+                />
               )}
+              <div>
+                <button
+                  onClick={() => {
+                    const id = clickedEntity.data.id;
+                    if (clickedEntity.type === 'character' && onOpenBibleCharacter) {
+                      onOpenBibleCharacter(id);
+                    } else if (clickedEntity.type === 'location' && onOpenBibleLocation) {
+                      onOpenBibleLocation(id);
+                    } else if (clickedEntity.type === 'item' && onOpenBibleItem) {
+                      onOpenBibleItem(id);
+                    }
+                    setIsCharacterCardOpen(false);
+                  }}
+                  className="text-xs font-extrabold uppercase tracking-widest text-[var(--accent)] hover:underline cursor-pointer text-left block bg-transparent border-none p-0 focus:outline-none"
+                  title="Open in Story Bible"
+                >
+                  {clickedEntity.data.name}
+                </button>
+                {clickedEntity.type === 'character' && clickedEntity.data.role && (
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold block mt-0.5">
+                    {clickedEntity.data.role}
+                  </span>
+                )}
+                {clickedEntity.type === 'location' && clickedEntity.data.scale && (
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold block mt-0.5">
+                    Scale: {clickedEntity.data.scale}
+                  </span>
+                )}
+                {clickedEntity.type === 'item' && (
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold block mt-0.5">
+                    Object/Item
+                  </span>
+                )}
+              </div>
             </div>
             <button
               onClick={() => setIsCharacterCardOpen(false)}
@@ -981,58 +1084,96 @@ export default function EditorCanvas({
 
           {/* Details list */}
           <div className="text-[11px] space-y-2.5 max-h-[250px] overflow-y-auto pr-1">
-            {clickedCharacter.age !== undefined && (
-              <div>
-                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Age</span>
-                <p className="opacity-90">{clickedCharacter.age}</p>
-              </div>
-            )}
-
-            {Array.isArray(clickedCharacter.aliases) && clickedCharacter.aliases.length > 0 && (
+            {Array.isArray(clickedEntity.data.aliases) && clickedEntity.data.aliases.length > 0 && (
               <div>
                 <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Aliases</span>
-                <p className="opacity-90 font-mono text-[10px]">{clickedCharacter.aliases.join(', ')}</p>
+                <p className="opacity-90 font-mono text-[10px]">{clickedEntity.data.aliases.join(', ')}</p>
               </div>
             )}
 
-            {clickedCharacter.appearance && (
-              <div>
-                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Appearance</span>
-                <p className="opacity-90 leading-relaxed">{clickedCharacter.appearance}</p>
-              </div>
+            {/* Character specific */}
+            {clickedEntity.type === 'character' && (
+              <>
+                {clickedEntity.data.age !== undefined && (
+                  <div>
+                    <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Age</span>
+                    <p className="opacity-90">{clickedEntity.data.age}</p>
+                  </div>
+                )}
+                {clickedEntity.data.appearance && (
+                  <div>
+                    <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Appearance</span>
+                    <p className="opacity-90 leading-relaxed">{clickedEntity.data.appearance}</p>
+                  </div>
+                )}
+                {Array.isArray(clickedEntity.data.traits) && clickedEntity.data.traits.length > 0 && (
+                  <div>
+                    <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest mb-0.5">Traits</span>
+                    <div className="flex flex-wrap gap-1">
+                      {clickedEntity.data.traits.map((trait: string, idx: number) => (
+                        <span key={idx} className="px-1.5 py-0.5 bg-[var(--border)]/35 text-[9px] font-semibold">
+                          {trait}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {Array.isArray(clickedEntity.data.desires) && clickedEntity.data.desires.length > 0 && (
+                  <div>
+                    <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Desires</span>
+                    <p className="opacity-90 leading-relaxed">{clickedEntity.data.desires.join(', ')}</p>
+                  </div>
+                )}
+                {Array.isArray(clickedEntity.data.fears) && clickedEntity.data.fears.length > 0 && (
+                  <div>
+                    <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Fears</span>
+                    <p className="opacity-90 leading-relaxed">{clickedEntity.data.fears.join(', ')}</p>
+                  </div>
+                )}
+              </>
             )}
 
-            {Array.isArray(clickedCharacter.traits) && clickedCharacter.traits.length > 0 && (
-              <div>
-                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest mb-0.5">Traits</span>
-                <div className="flex flex-wrap gap-1">
-                  {clickedCharacter.traits.map((trait: string, idx: number) => (
-                    <span key={idx} className="px-1.5 py-0.5 bg-[var(--border)]/35 text-[9px] font-semibold">
-                      {trait}
-                    </span>
-                  ))}
-                </div>
-              </div>
+            {/* Location specific */}
+            {clickedEntity.type === 'location' && (
+              <>
+                {Array.isArray(clickedEntity.data.descriptors) && clickedEntity.data.descriptors.length > 0 && (
+                  <div>
+                    <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Descriptors</span>
+                    <p className="opacity-90 leading-relaxed">{clickedEntity.data.descriptors.join(', ')}</p>
+                  </div>
+                )}
+                {clickedEntity.data.significance && (
+                  <div>
+                    <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Significance</span>
+                    <p className="opacity-90 leading-relaxed">{clickedEntity.data.significance}</p>
+                  </div>
+                )}
+              </>
             )}
 
-            {Array.isArray(clickedCharacter.desires) && clickedCharacter.desires.length > 0 && (
-              <div>
-                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Desires</span>
-                <p className="opacity-90 leading-relaxed">{clickedCharacter.desires.join(', ')}</p>
-              </div>
+            {/* Item specific */}
+            {clickedEntity.type === 'item' && (
+              <>
+                {clickedEntity.data.description && (
+                  <div>
+                    <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Description</span>
+                    <p className="opacity-90 leading-relaxed">{clickedEntity.data.description}</p>
+                  </div>
+                )}
+                {clickedEntity.data.significance && (
+                  <div>
+                    <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Significance</span>
+                    <p className="opacity-90 leading-relaxed">{clickedEntity.data.significance}</p>
+                  </div>
+                )}
+              </>
             )}
 
-            {Array.isArray(clickedCharacter.fears) && clickedCharacter.fears.length > 0 && (
-              <div>
-                <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Fears</span>
-                <p className="opacity-90 leading-relaxed">{clickedCharacter.fears.join(', ')}</p>
-              </div>
-            )}
-
-            {clickedCharacter.notes && (
+            {/* Common Notes */}
+            {clickedEntity.data.notes && (
               <div className="border-t border-[var(--border)]/20 pt-2">
                 <span className="font-extrabold block text-[8px] opacity-50 uppercase tracking-widest">Notes</span>
-                <p className="opacity-90 leading-relaxed whitespace-pre-wrap">{clickedCharacter.notes}</p>
+                <p className="opacity-90 leading-relaxed whitespace-pre-wrap">{clickedEntity.data.notes}</p>
               </div>
             )}
           </div>
@@ -1053,6 +1194,12 @@ export default function EditorCanvas({
             name: l.name,
             type: 'locations' as const,
             subtitle: l.significance || '',
+          })),
+          ...(items || []).map(i => ({
+            id: i.id,
+            name: i.name,
+            type: 'items' as const,
+            subtitle: i.description || '',
           }))
         ];
         const filteredItems = allBibleItems.filter(item => 
@@ -1081,7 +1228,7 @@ export default function EditorCanvas({
               {/* Search Input for Bible items */}
               <input
                 type="text"
-                placeholder="Filter characters or locations..."
+                placeholder="Filter characters, locations, or items..."
                 value={pickerSearchQuery}
                 onChange={(e) => setPickerSearchQuery(e.target.value)}
                 className="w-full px-3 py-2 bg-[var(--editor-bg)] border border-[var(--border)] focus:outline-none text-xs rounded-none mb-3"
@@ -1107,7 +1254,7 @@ export default function EditorCanvas({
                       <span className="text-xs font-semibold text-[var(--foreground)]">{item.name}</span>
                       <span className="text-[10px] opacity-60 flex items-center gap-2">
                         <span className="uppercase tracking-wider font-bold text-[8px]">
-                          {item.type === 'characters' ? 'Character' : 'Location'}
+                          {item.type === 'characters' ? 'Character' : item.type === 'locations' ? 'Location' : 'Item'}
                         </span>
                         {item.subtitle && <span>• {item.subtitle}</span>}
                       </span>
@@ -1138,4 +1285,6 @@ export default function EditorCanvas({
       )}
     </div>
   );
-}
+});
+
+export default EditorCanvas;

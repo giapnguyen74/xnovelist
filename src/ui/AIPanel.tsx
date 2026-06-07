@@ -6,27 +6,8 @@ import { ToolResult, ProposalResult, ToolContext } from '../ai/types';
 import { findWriteOp } from '../ai/writeOps/registry';
 import { Project } from '../storage/schemas';
 
-interface AIPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  workspaceAI: WorkspaceAIConfig;
-  onOpenPreferences: () => void;
-  hasProject: boolean;
-  project?: Project | null;
-  activeChapterMarkdown?: string;
-  selectionText?: string;
-  activeChapterId?: string;
-  /** Runs an action through the runTool dispatcher. */
-  runTool: (
-    actionId: string,
-    input: unknown,
-    modelOverride?: { providerId?: string; model?: string }
-  ) => Promise<ToolResult<ProposalResult>>;
-  /** Executes a write-op on the project. */
-  onExecuteWriteOp: (opId: string, args: unknown) => Promise<void>;
-}
 
-interface TranscriptCard {
+export interface TranscriptCard {
   op: string;
   args: Record<string, unknown>;
   status: 'pending' | 'applied' | 'discarded';
@@ -37,7 +18,7 @@ interface TranscriptCard {
   loading?: boolean;
 }
 
-interface TranscriptTurn {
+export interface TranscriptTurn {
   id: string;
   actionId: string;
   actionLabel: string;
@@ -51,6 +32,31 @@ interface TranscriptTurn {
   elapsedMs?: number;
   proposalResult?: ProposalResult;
   cards?: TranscriptCard[];
+}
+
+interface AIPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  workspaceAI: WorkspaceAIConfig;
+  onOpenPreferences: () => void;
+  hasProject: boolean;
+  project?: Project | null;
+  activeChapterMarkdown?: string;
+  selectionText?: string;
+  activeSelection?: { from: number; to: number; text: string; textBefore: string; textAfter: string } | null;
+  activeChapterId?: string;
+  /** Runs an action through the runTool dispatcher. */
+  runTool: (
+    actionId: string,
+    input: unknown,
+    modelOverride?: { providerId?: string; model?: string }
+  ) => Promise<ToolResult<ProposalResult>>;
+  /** Executes a write-op on the project. */
+  onExecuteWriteOp: (opId: string, args: unknown) => Promise<void>;
+  transcript: TranscriptTurn[];
+  setTranscript: React.Dispatch<React.SetStateAction<TranscriptTurn[]>>;
+  selectedActionId?: string;
+  onSelectActionId?: (id: string) => void;
 }
 
 const getArgString = (args: Record<string, unknown>, key: string): string => {
@@ -71,16 +77,24 @@ export default function AIPanel({
   project,
   activeChapterMarkdown,
   selectionText,
+  activeSelection,
   activeChapterId,
   runTool,
   onExecuteWriteOp,
+  transcript,
+  setTranscript,
+  selectedActionId: propSelectedActionId,
+  onSelectActionId,
 }: AIPanelProps) {
   const [scope, setScope] = useState<'chapter' | 'selection'>('chapter');
-  const [selectedActionId, setSelectedActionId] = useState<string>('');
+  const [localSelectedActionId, setLocalSelectedActionId] = useState<string>('');
+  
+  const selectedActionId = propSelectedActionId !== undefined ? propSelectedActionId : localSelectedActionId;
+  const setSelectedActionId = onSelectActionId !== undefined ? onSelectActionId : setLocalSelectedActionId;
+
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [guidance, setGuidance] = useState<string>('');
   const [params, setParams] = useState<Record<string, string | number>>({});
-  const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
 
@@ -136,11 +150,14 @@ export default function AIPanel({
   // Set default selected action
   useEffect(() => {
     if (actions.length > 0) {
-      setSelectedActionId(actions[0].id);
+      const exists = actions.some((a) => a.id === selectedActionId);
+      if (!exists) {
+        setSelectedActionId(actions[0].id);
+      }
     } else {
       setSelectedActionId('');
     }
-  }, [actions]);
+  }, [actions, selectedActionId, setSelectedActionId]);
 
   const selectedAction = useMemo(() => findAction(selectedActionId), [selectedActionId]);
 
@@ -209,9 +226,16 @@ export default function AIPanel({
       const chapterId = activeChapterId || '';
       const proseText = scope === 'selection' ? (selectionText || '') : (activeChapterMarkdown || '');
       const input = {
-        selection: { text: proseText },
+        selection: scope === 'selection' && activeSelection ? {
+          text: activeSelection.text,
+          from: activeSelection.from,
+          to: activeSelection.to,
+          textBefore: activeSelection.textBefore,
+          textAfter: activeSelection.textAfter,
+        } : { text: proseText },
         chapterId,
         params,
+        hint: newTurn.guidance,
         guidance: newTurn.guidance,
       };
 
@@ -653,6 +677,19 @@ export default function AIPanel({
                                 />
                               </div>
                             )}
+
+                            {/* replace_range editor — editable AI suggestion (original stays visible in the editor) */}
+                            {card.op === 'replace_range' && (
+                              <div className="space-y-1.5">
+                                <label className="text-[8px] uppercase tracking-wider text-[var(--accent)] font-bold">AI suggestion</label>
+                                <textarea
+                                  value={getArgString(card.args, 'text')}
+                                  rows={6}
+                                  onChange={(e) => updateCardArgs(t.id, cardIdx, 'text', e.target.value)}
+                                  className="w-full p-2 bg-white dark:bg-black/20 border border-[var(--accent)]/40 rounded focus:outline-none focus:border-[var(--accent)] text-xs font-serif leading-relaxed"
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -694,7 +731,7 @@ export default function AIPanel({
                                 onClick={() => handleRejectCard(t.id, cardIdx)}
                                 className="px-2 py-1 text-[9px] border border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/5 rounded cursor-pointer transition-colors"
                               >
-                                Reject
+                                {card.op === 'replace_range' ? 'Keep mine' : 'Reject'}
                               </button>
                               <button
                                 disabled={card.loading}
@@ -702,7 +739,7 @@ export default function AIPanel({
                                 className="px-2 py-1 text-[9px] font-semibold bg-[var(--accent)] text-white hover:opacity-90 rounded cursor-pointer flex items-center gap-1 transition-opacity disabled:opacity-50"
                               >
                                 {card.loading && <Loader2 size={10} className="animate-spin" />}
-                                Accept
+                                {card.op === 'replace_range' ? 'Replace' : 'Accept'}
                               </button>
                             </div>
                           )}

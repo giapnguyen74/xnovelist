@@ -8,6 +8,8 @@ interface OutlineGridProps {
   chapterOrder: string[];
   wordCounts: Record<string, number>;
   chaptersWithHistory: Set<string>;
+  projectTitle: string;
+  projectAuthor: string;
   onSelectChapter: (id: string) => void;
   onCreateChapter: () => void;
   onSelectChapterContinuity: (id: string) => void;
@@ -22,6 +24,8 @@ export default function OutlineGrid({
   chapterOrder,
   wordCounts,
   chaptersWithHistory,
+  projectTitle,
+  projectAuthor,
   onSelectChapter,
   onCreateChapter,
   onSelectChapterContinuity,
@@ -65,8 +69,8 @@ export default function OutlineGrid({
         {/* Header Title */}
         <div className="pb-3 border-b border-[var(--border)] flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-bold uppercase tracking-wider text-[var(--foreground)] font-sans">{t('manuscriptOutline')}</h2>
-            <p className="text-xs opacity-70">{t('outlineSubtitle')}</p>
+            <h2 className="text-xl font-bold uppercase tracking-wider text-[var(--foreground)] font-sans">{projectTitle || t('manuscriptOutline')}</h2>
+            <p className="text-xs opacity-70">{projectAuthor}</p>
           </div>
           <button
             onClick={onCreateChapter}

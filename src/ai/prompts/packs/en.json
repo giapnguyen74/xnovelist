@@ -20,6 +20,26 @@
     "check_continuity": {
       "action": "Compare the chapter against the supplied Story Bible and preceding continuity. Flag only statements in the chapter that contradict an established fact. Do not flag stylistic issues or new information that merely adds detail.",
       "outputFormat": "Return ONLY a JSON object of the form {\"flags\":[{\"severity\":\"high|medium|low\",\"statement\":\"the chapter text that conflicts\",\"conflict\":\"the established fact it contradicts\"}]}. Return {\"flags\":[]} if nothing conflicts. No prose outside the JSON."
+    },
+    "fix_grammar": {
+      "action": "Fix spelling, grammar, and punctuation errors in the SELECTION. Maintain the author's voice, style, and meaning without rewriting unnecessarily.",
+      "outputFormat": "Return ONLY the revised SELECTION. No explanations, no notes."
+    },
+    "rephrase": {
+      "action": "Rephrase the SELECTION to improve style, flow, and expression while preserving the exact content, events, and point of view.",
+      "outputFormat": "Return ONLY the revised SELECTION. No explanations, no notes."
+    },
+    "shorten": {
+      "action": "Shorten the SELECTION. Reduce the length to the target percentage (approx. {target}%) while keeping all events, dialogue, and emotions intact.",
+      "outputFormat": "Return ONLY the revised SELECTION. No explanations, no notes."
+    },
+    "polish_dialogue": {
+      "action": "Polish the dialogue in the SELECTION. Sharpen each speaker's voice and make conversation feel natural, while keeping the same lines, speakers, and subtext.",
+      "outputFormat": "Return ONLY the revised SELECTION. No explanations, no notes."
+    },
+    "vivid_detail": {
+      "action": "Enhance the SELECTION with vivid details, focusing on {focus}. Sharpen concreteness in place: replace weak verbs and nouns with precise, evocative ones. Do not add new sentences, invent events, characters, or places. Keep size change under 1.2x.",
+      "outputFormat": "Return ONLY the revised SELECTION. No explanations, no notes."
     }
   }
 }

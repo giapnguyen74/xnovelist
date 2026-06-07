@@ -78,6 +78,8 @@ export const CharacterSchema = z.object({
   relationships: z.array(RelationshipSchema).default([]),
   notes: z.string().optional(),
   evidence: z.array(EvidenceSchema).default([]),
+  avatar: z.string().optional(), // base64 URL or image path
+  color: z.string().optional(),  // hex code
 });
 
 export type Character = z.infer<typeof CharacterSchema>;
@@ -99,6 +101,8 @@ export const LocationSchema = z.object({
   inhabitants: z.array(z.string()).default([]),
   notes: z.string().optional(),
   evidence: z.array(EvidenceSchema).default([]),
+  avatar: z.string().optional(), // base64 URL or image path
+  color: z.string().optional(),  // hex code
 });
 
 export type Location = z.infer<typeof LocationSchema>;
@@ -109,6 +113,27 @@ export const LocationsSchema = z.object({
 });
 
 export type Locations = z.infer<typeof LocationsSchema>;
+
+export const ItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  aliases: z.array(z.string()).default([]),
+  description: z.string().optional(),
+  significance: z.string().optional(),
+  notes: z.string().optional(),
+  evidence: z.array(EvidenceSchema).default([]),
+  avatar: z.string().optional(), // base64 URL or image path
+  color: z.string().optional(),  // hex code
+});
+
+export type Item = z.infer<typeof ItemSchema>;
+
+export const ItemsSchema = z.object({
+  schemaVersion: z.literal(1),
+  items: z.array(ItemSchema).default([]),
+});
+
+export type Items = z.infer<typeof ItemsSchema>;
 
 export const StyleSchema = z.object({
   schemaVersion: z.literal(1),

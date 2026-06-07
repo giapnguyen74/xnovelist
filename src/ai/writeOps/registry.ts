@@ -6,6 +6,7 @@ import { locationUpdate } from './locationUpdate';
 import { styleSet } from './styleSet';
 import { appendContinuity } from './appendContinuity';
 import { continuitySet } from './continuitySet';
+import { replaceRangeOp } from './replaceRange';
 
 export const ALL_WRITE_OPS: readonly WriteOp[] = Object.freeze([
   characterAdd,
@@ -15,8 +16,10 @@ export const ALL_WRITE_OPS: readonly WriteOp[] = Object.freeze([
   styleSet,
   appendContinuity,
   continuitySet,
+  replaceRangeOp,
 ]);
 
 export function findWriteOp(id: string): WriteOp | undefined {
   return ALL_WRITE_OPS.find((op) => op.id === id);
 }
+
