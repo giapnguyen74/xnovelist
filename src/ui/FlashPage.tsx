@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Feather, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 
 interface FlashPageProps {
@@ -106,7 +106,7 @@ export default function FlashPage({ onDismiss }: FlashPageProps) {
           </p>
           <div className="h-[1px] w-12 bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent mx-auto my-2" />
           <p className="text-sm text-neutral-300 leading-relaxed font-serif italic max-w-sm px-2">
-            "{slogan}"
+            &ldquo;{slogan}&rdquo;
           </p>
         </div>
 
