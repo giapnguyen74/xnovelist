@@ -519,13 +519,46 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
     replaceRange(from: number, to: number, text: string, expected?: string) {
       if (!editor || editor.isDestroyed) return false;
       const { state } = editor;
+
       if (expected !== undefined) {
-        const currentText = state.doc.textBetween(from, to, ' ').trim();
-        if (currentText !== expected.trim()) {
-          alert("Warning: The text in this area has changed. The AI edit cannot be applied to prevent overwriting your latest changes.");
-          return false;
+        // Search the document for the exact expected string — same as how a
+        // code agent replaces code: find the block, replace if found exactly,
+        // reject if it has been changed or deleted.
+        const expectedNorm = expected.trim();
+        type CharEntry = { char: string; pmPos: number }; // pmPos=-1 → block separator
+        const charMap: CharEntry[] = [];
+        let prevNodeEnd = -1;
+        state.doc.nodesBetween(0, state.doc.content.size, (node, pos) => {
+          if (!node.isText || !node.text) return;
+          if (prevNodeEnd !== -1 && pos > prevNodeEnd) {
+            charMap.push({ char: ' ', pmPos: -1 }); // block boundary space
+          }
+          for (let i = 0; i < node.text.length; i++) {
+            charMap.push({ char: node.text[i], pmPos: pos + i });
+          }
+          prevNodeEnd = pos + node.text.length;
+        });
+
+        const plainFull = charMap.map((e) => e.char).join('');
+        const searchIdx = plainFull.indexOf(expectedNorm);
+        if (searchIdx !== -1) {
+          const fromEntry = charMap[searchIdx];
+          const toEntry = charMap[searchIdx + expectedNorm.length - 1];
+          if (fromEntry && toEntry && fromEntry.pmPos !== -1 && toEntry.pmPos !== -1) {
+            editor.commands.insertContentAt(
+              { from: fromEntry.pmPos, to: toEntry.pmPos + 1 },
+              text
+            );
+            return true;
+          }
         }
+
+        // Not found — text has been edited; refuse to apply.
+        alert("This AI suggestion could not be applied because the original text has already been changed.");
+        return false;
       }
+
+      // No guard — fall back to positional insert.
       editor.commands.insertContentAt({ from, to }, text);
       return true;
     }
