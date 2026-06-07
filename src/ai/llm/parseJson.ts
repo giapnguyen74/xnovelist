@@ -1,4 +1,28 @@
 /**
+ * Split reasoning-model "thinking" out of a response. Some OpenAI-compatible
+ * reasoning models (deepseek-r1, QwQ, etc.) emit their chain-of-thought inline
+ * in the content wrapped in <think>…</think> (or <thinking>…</thinking>). We
+ * strip it from the usable text but return it so a debug view can show it.
+ */
+export function stripThinking(raw: string): { clean: string; thinking: string } {
+  if (!raw) return { clean: '', thinking: '' };
+  const thinkParts: string[] = [];
+  // 1) Well-formed <think>…</think> pairs.
+  let clean = raw.replace(/<(think|thinking|reasoning)>([\s\S]*?)<\/\1>/gi, (_m, _tag, inner) => {
+    thinkParts.push(String(inner).trim());
+    return '';
+  });
+  // 2) A leading open tag with no close (response cut off mid-thought): treat
+  //    everything after the open tag as thinking.
+  const openOnly = clean.match(/<(?:think|thinking|reasoning)>([\s\S]*)$/i);
+  if (openOnly && !/<\/(?:think|thinking|reasoning)>/i.test(clean)) {
+    thinkParts.push(openOnly[1].trim());
+    clean = clean.slice(0, openOnly.index).trim();
+  }
+  return { clean: clean.trim(), thinking: thinkParts.filter(Boolean).join('\n\n') };
+}
+
+/**
  * Tolerant JSON extraction. Models often wrap JSON in prose or ```json fences.
  * This pulls the first balanced JSON object/array out of the text and parses it.
  * Returns null on failure; the caller decides whether to run a repair retry.

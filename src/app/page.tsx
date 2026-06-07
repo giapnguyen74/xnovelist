@@ -137,11 +137,21 @@ export default function WorkspacePage() {
     }
   }, []);
 
-  // Track active selection text for AI panel scope
+  // Track active selection text for AI panel scope.
+  // A non-empty selection always updates. An empty selection only clears when
+  // the editor still holds focus (the user collapsed the caret inside the
+  // prose) — if focus moved into the Agent panel, we keep the last selection so
+  // picking an action/model doesn't wipe the range mid-flow.
   useEffect(() => {
     const handleSelectionChange = () => {
       const sel = window.getSelection()?.toString() || '';
-      setSelectionText(sel);
+      if (sel.trim()) {
+        setSelectionText(sel);
+        return;
+      }
+      const ae = document.activeElement as HTMLElement | null;
+      const inEditor = !!ae && (ae.isContentEditable || !!ae.closest?.('.ProseMirror'));
+      if (inEditor) setSelectionText('');
     };
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => {
@@ -906,14 +916,16 @@ export default function WorkspacePage() {
   };
 
   // ---- AI engine wiring (Level 1) ----------------------------------------
-  const buildToolContext = (): ToolContext => {
+  const buildToolContext = (modelOverride?: { providerId?: string; model?: string }): ToolContext => {
     if (!storage || !project) throw new Error('No active project.');
+    const debug = { reasoning: '', raw: '' };
     return {
       storage,
       project,
       prefix: `projects/${project.id}/`,
       lang: project.language || 'en',
-      callModel: makeCallModel(workspaceAI, true),
+      debug,
+      callModel: makeCallModel(workspaceAI, true, modelOverride, debug),
       onUpdateCharacters: (list) => {
         setCharacters({ schemaVersion: 1, characters: list });
       },
@@ -929,9 +941,13 @@ export default function WorkspacePage() {
     };
   };
 
-  const handleRunTool = async (toolId: string, input: unknown): Promise<ToolResult<ProposalResult>> => {
+  const handleRunTool = async (
+    toolId: string,
+    input: unknown,
+    modelOverride?: { providerId?: string; model?: string }
+  ): Promise<ToolResult<ProposalResult>> => {
     if (!storage || !project) throw new Error('Open a project first.');
-    return runTool(toolId, input, buildToolContext(), workspaceAI);
+    return runTool(toolId, input, buildToolContext(modelOverride), workspaceAI);
   };
 
   const handleExecuteWriteOp = async (opId: string, args: unknown): Promise<void> => {

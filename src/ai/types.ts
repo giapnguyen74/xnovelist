@@ -10,15 +10,26 @@ export interface ChatRequest {
   maxTokens?: number;
   /** Override the configured model for this call (e.g. a fast model). */
   model?: string;
+  /** Override the request timeout in ms (defaults are provider-aware). */
+  timeoutMs?: number;
 }
 
 export interface ChatResponse {
   text: string;
+  /** Reasoning-model chain-of-thought, stripped from `text` (for debug view only). */
+  reasoning?: string;
   inputTokens?: number;
   outputTokens?: number;
 }
 
 export type CallModel = (req: ChatRequest) => Promise<ChatResponse>;
+
+/** A per-run sink the harness threads through ToolContext so reasoning/raw
+ *  output from each model call can be surfaced in the panel's debug view. */
+export interface DebugSink {
+  reasoning: string;
+  raw: string;
+}
 
 /** Everything an action's `propose` or write-op's `execute` is allowed to touch. Assembled by the caller. */
 export interface ToolContext {
@@ -35,6 +46,9 @@ export interface ToolContext {
   onUpdateLocations?: (list: Location[]) => void;
   onUpdateStyle?: (style: Style) => void;
   onUpdateContinuity?: (chapterId: string, content: string) => Promise<void>;
+
+  /** Optional debug sink; `callModel` appends each call's reasoning/raw output. */
+  debug?: DebugSink;
 }
 
 export interface ToolResult<O = unknown> {
@@ -42,6 +56,8 @@ export interface ToolResult<O = unknown> {
   output?: O;
   warnings: string[];
   error?: string;
+  /** Reasoning captured during the run, for the panel's debug view. */
+  reasoning?: string;
   estimatedInputTokens?: number;
   actualInputTokens?: number;
   actualOutputTokens?: number;

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Sparkles, Bot, Loader2, AlertTriangle, Check, Send, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Bot, Loader2, AlertTriangle, Check, Send, CheckCircle2, ChevronDown, FileText, TextSelect } from 'lucide-react';
 import { WorkspaceAIConfig } from '../storage/aiConfig';
 import { actionsForLevel, findAction } from '../ai/registry';
 import { ToolResult, ProposalResult, ToolContext } from '../ai/types';
@@ -17,7 +17,11 @@ interface AIPanelProps {
   selectionText?: string;
   activeChapterId?: string;
   /** Runs an action through the runTool dispatcher. */
-  runTool: (actionId: string, input: unknown) => Promise<ToolResult<ProposalResult>>;
+  runTool: (
+    actionId: string,
+    input: unknown,
+    modelOverride?: { providerId?: string; model?: string }
+  ) => Promise<ToolResult<ProposalResult>>;
   /** Executes a write-op on the project. */
   onExecuteWriteOp: (opId: string, args: unknown) => Promise<void>;
 }
@@ -43,6 +47,7 @@ interface TranscriptTurn {
   guidance?: string;
   status: 'loading' | 'success' | 'error';
   error?: string;
+  reasoning?: string;
   proposalResult?: ProposalResult;
   cards?: TranscriptCard[];
 }
@@ -73,8 +78,10 @@ export default function AIPanel({
   const [selectedActionId, setSelectedActionId] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [guidance, setGuidance] = useState<string>('');
+  const [params, setParams] = useState<Record<string, string | number>>({});
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
@@ -134,6 +141,21 @@ export default function AIPanel({
     }
   }, [actions]);
 
+  const selectedAction = useMemo(() => findAction(selectedActionId), [selectedActionId]);
+
+  // Params depend on the chosen action — reset to that action's defaults whenever
+  // the action changes.
+  useEffect(() => {
+    const next: Record<string, string | number> = {};
+    (selectedAction?.params || []).forEach((p) => {
+      if (p.default !== undefined) next[p.name] = p.default;
+      else if (p.type === 'choice' && p.choices?.length) next[p.name] = p.choices[0];
+      else if (p.type === 'number') next[p.name] = 0;
+      else next[p.name] = '';
+    });
+    setParams(next);
+  }, [selectedAction]);
+
   const hasReadyProvider = modelsList.length > 0;
 
   const getSelectionLineRange = () => {
@@ -188,16 +210,19 @@ export default function AIPanel({
       const input = {
         selection: { text: proseText },
         chapterId,
-        params: {},
+        params,
         guidance: newTurn.guidance,
       };
 
-      const res = await runTool(selectedActionId, input);
+      const chosen = modelsList.find((m) => m.id === selectedModel);
+      const modelOverride = chosen ? { providerId: chosen.providerId, model: chosen.id } : undefined;
+      const res = await runTool(selectedActionId, input, modelOverride);
 
       if (!res.ok) {
         updateTurn(turnId, {
           status: 'error',
           error: res.error || 'AI returned an error.',
+          reasoning: res.reasoning,
         });
         return;
       }
@@ -253,6 +278,7 @@ export default function AIPanel({
         status: 'success',
         proposalResult,
         cards,
+        reasoning: res.reasoning,
       });
 
     } catch (err) {
@@ -310,7 +336,7 @@ export default function AIPanel({
     );
   }
 
-  async function handleAcceptCard(turnId: string, cardIdx: number) {
+  async function handleAcceptCard(turnId: string, cardIdx: number, card: TranscriptCard) {
     setTranscript((prev) =>
       prev.map((t) => {
         if (t.id !== turnId || !t.cards) return t;
@@ -320,20 +346,8 @@ export default function AIPanel({
       })
     );
 
-    let opId = '';
-    let args: Record<string, unknown> | null = null;
-
-    setTranscript((prev) => {
-      const t = prev.find((x) => x.id === turnId);
-      if (t && t.cards) {
-        opId = t.cards[cardIdx].op;
-        args = t.cards[cardIdx].args;
-      }
-      return prev;
-    });
-
     try {
-      await onExecuteWriteOp(opId, args);
+      await onExecuteWriteOp(card.op, card.args);
       setTranscript((prev) =>
         prev.map((t) => {
           if (t.id !== turnId || !t.cards) return t;
@@ -383,40 +397,6 @@ export default function AIPanel({
         </button>
       </div>
 
-      {/* Scope and Config Selectors */}
-      <div className="p-3 border-b border-[var(--border)] bg-black/5 dark:bg-white/5 space-y-2">
-        <div className="flex items-center justify-between gap-1.5">
-          {/* Scope Chips */}
-          <div className="flex bg-[var(--border)]/30 rounded p-0.5 w-full">
-            <button
-              onClick={() => setScope('chapter')}
-              className={`flex-1 text-center py-1 rounded-[3px] text-[10px] font-semibold transition-all cursor-pointer ${
-                scope === 'chapter' ? 'bg-white dark:bg-[#1a1a19] shadow-sm font-bold text-[var(--accent)]' : 'opacity-60 hover:opacity-100'
-              }`}
-            >
-              Chapter
-            </button>
-            <button
-              disabled={!selectionText || !selectionText.trim()}
-              onClick={() => setScope('selection')}
-              className={`flex-1 text-center py-1 rounded-[3px] text-[10px] font-semibold transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
-                scope === 'selection' ? 'bg-white dark:bg-[#1a1a19] shadow-sm font-bold text-[var(--accent)]' : 'opacity-60 hover:opacity-100'
-              }`}
-            >
-              Selection
-            </button>
-          </div>
-        </div>
-
-        {scope === 'selection' && selectionText && (
-          <div className="flex items-center gap-1 text-[8px] bg-[var(--accent)]/10 text-[var(--accent)] font-semibold px-2 py-0.5 rounded border border-[var(--accent)]/20 truncate">
-            <span>Range:</span>
-            <span className="font-mono">{getChapterLabel()} {getSelectionLineRange()}</span>
-            <span className="opacity-60 truncate">({selectionText.slice(0, 30)}...)</span>
-          </div>
-        )}
-      </div>
-
       {/* Main Panel Content: Split into Transcript (top-scrollable) and Composer (bottom-sticky) */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* Scrollable Transcript Feed */}
@@ -446,6 +426,18 @@ export default function AIPanel({
                   </div>
                 </div>
 
+                {/* Debug: model thinking (reasoning models) */}
+                {showDebug && t.reasoning && (
+                  <details className="text-[9px] bg-amber-500/5 border border-amber-500/20 rounded p-1.5" open>
+                    <summary className="cursor-pointer font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider text-[8px]">
+                      Model thinking
+                    </summary>
+                    <pre className="whitespace-pre-wrap font-mono text-[9px] opacity-70 mt-1 max-h-40 overflow-y-auto select-text">
+                      {t.reasoning}
+                    </pre>
+                  </details>
+                )}
+
                 {/* State Renderers */}
                 {t.status === 'loading' && (
                   <div className="p-3 flex items-center justify-center gap-2 opacity-60">
@@ -463,6 +455,13 @@ export default function AIPanel({
 
                 {t.status === 'success' && t.proposalResult && (
                   <div className="space-y-2 pl-1 border-l border-[var(--border)]">
+                    {/* Empty proposals notice */}
+                    {t.proposalResult.type === 'proposals' && (t.cards?.length ?? 0) === 0 && (
+                      <div className="p-2 bg-black/5 dark:bg-white/5 text-[10px] opacity-60 rounded flex items-center gap-1.5">
+                        <CheckCircle2 size={12} /> No proposals from this passage.
+                      </div>
+                    )}
+
                     {/* Render Text Card */}
                     {t.proposalResult.type === 'text' && (
                       <div className="space-y-2">
@@ -673,7 +672,7 @@ export default function AIPanel({
                               </button>
                               <button
                                 disabled={card.loading}
-                                onClick={() => handleAcceptCard(t.id, cardIdx)}
+                                onClick={() => handleAcceptCard(t.id, cardIdx, card)}
                                 className="px-2 py-1 text-[9px] font-semibold bg-[var(--accent)] text-white hover:opacity-90 rounded cursor-pointer flex items-center gap-1 transition-opacity disabled:opacity-50"
                               >
                                 {card.loading && <Loader2 size={10} className="animate-spin" />}
@@ -713,79 +712,115 @@ export default function AIPanel({
           <div className="p-4 border-t border-[var(--border)] text-center text-[10px] opacity-50 bg-black/10 dark:bg-white/5">
             Open a project to use Composer.
           </div>
-        ) : (
-          <div className="p-3 border-t border-[var(--border)] bg-black/10 dark:bg-white/5 space-y-2.5">
-            {/* Action Selector */}
-            <div className="space-y-1">
-              <label className="text-[8px] uppercase tracking-wider opacity-60 font-bold">Select Action</label>
-              {actions.length === 0 ? (
-                <div className="p-2 border border-dashed border-[var(--border)] rounded text-[9px] opacity-60 italic text-center">
-                  No actions available at Level {workspaceAI.level} for {scope} scope.
-                </div>
-              ) : (
-                <select
-                  value={selectedActionId}
-                  onChange={(e) => setSelectedActionId(e.target.value)}
-                  className="w-full p-1.5 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded focus:outline-none focus:border-[var(--accent)] text-xs cursor-pointer"
-                >
-                  {actions.map((act) => (
-                    <option key={act.id} value={act.id}>
-                      {act.label} — {act.description}
-                    </option>
-                  ))}
-                </select>
-              )}
+        ) : actions.length === 0 ? (
+          <div className="p-3 border-t border-[var(--border)] bg-black/10 dark:bg-white/5">
+            <div className="p-2 border border-dashed border-[var(--border)] rounded text-[9px] opacity-60 italic text-center leading-normal">
+              No actions at Level {workspaceAI.level} for {scope === 'selection' ? 'a selection' : 'the chapter'}.
+              {scope === 'chapter' && ' Select text in the editor for selection actions.'}
             </div>
+          </div>
+        ) : (
+          <div className="p-3 border-t border-[var(--border)] bg-black/10 dark:bg-white/5">
+            {/* Goal box */}
+            <div className="border border-[var(--border)] rounded-lg bg-white dark:bg-[#1a1a19] p-2 space-y-2">
+              {/* Chips: action + context */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="relative">
+                  <select
+                    value={selectedActionId}
+                    onChange={(e) => setSelectedActionId(e.target.value)}
+                    className="appearance-none pl-2 pr-5 py-1 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 text-[10px] font-semibold cursor-pointer focus:outline-none"
+                    title="Choose action"
+                  >
+                    {actions.map((act) => (
+                      <option key={act.id} value={act.id}>{act.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--accent)]" />
+                </div>
 
-            {/* Model and Guidance row */}
-            <div className="flex gap-2">
-              {/* Model Picker */}
-              <div className="flex-1 space-y-1">
-                <label className="text-[8px] uppercase tracking-wider opacity-60 font-bold">Model</label>
+                <button
+                  onClick={() => setScope((s) => (s === 'selection' ? 'chapter' : 'selection'))}
+                  disabled={scope === 'chapter' && !selectionText?.trim()}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--border)]/40 border border-[var(--border)] text-[10px] font-mono font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:border-[var(--accent)]/50 transition-colors"
+                  title={selectionText?.trim() ? 'Toggle Chapter / Selection scope' : 'Select text in the editor to scope to a selection'}
+                >
+                  {scope === 'selection' ? <TextSelect size={10} /> : <FileText size={10} />}
+                  {currentSelectionLabel() || (scope === 'selection' ? 'Selection' : 'Chapter')}
+                </button>
+              </div>
+
+              {/* Selection preview */}
+              {scope === 'selection' && selectionText?.trim() && (
+                <div className="text-[8px] opacity-50 truncate italic px-0.5">
+                  &ldquo;{selectionText.slice(0, 60)}{selectionText.length > 60 ? '…' : ''}&rdquo;
+                </div>
+              )}
+
+              {/* Guidance / goal text */}
+              <textarea
+                value={guidance}
+                disabled={submitting}
+                onChange={(e) => setGuidance(e.target.value)}
+                rows={2}
+                placeholder={selectedAction ? `${selectedAction.description} — add guidance (optional)…` : 'Add guidance (optional)…'}
+                className="w-full p-1.5 bg-transparent border border-[var(--border)] rounded focus:outline-none focus:border-[var(--accent)] text-xs resize-none"
+              />
+
+              {/* Dynamic params — depend on the chosen action */}
+              {selectedAction?.params && selectedAction.params.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {selectedAction.params.map((p) => (
+                    <div key={p.name} className="flex items-center gap-1 text-[9px]">
+                      <span className="opacity-60 font-semibold">{p.label}</span>
+                      {p.type === 'choice' ? (
+                        <select
+                          value={String(params[p.name] ?? '')}
+                          onChange={(e) => setParams((prev) => ({ ...prev, [p.name]: e.target.value }))}
+                          className="bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded px-1 py-0.5 text-[9px] cursor-pointer focus:outline-none focus:border-[var(--accent)]"
+                        >
+                          {(p.choices || []).map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      ) : p.type === 'number' ? (
+                        <input
+                          type="number"
+                          value={Number(params[p.name] ?? 0)}
+                          onChange={(e) => setParams((prev) => ({ ...prev, [p.name]: Number(e.target.value) }))}
+                          className="w-14 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded px-1 py-0.5 text-[9px] focus:outline-none focus:border-[var(--accent)]"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={String(params[p.name] ?? '')}
+                          onChange={(e) => setParams((prev) => ({ ...prev, [p.name]: e.target.value }))}
+                          className="w-24 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded px-1 py-0.5 text-[9px] focus:outline-none focus:border-[var(--accent)]"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Toolbar: model + send */}
+              <div className="flex items-center gap-1.5 border-t border-[var(--border)]/40 pt-2">
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full p-1 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded focus:outline-none focus:border-[var(--accent)] text-[10px] cursor-pointer"
+                  className="flex-1 min-w-0 p-1 bg-transparent border border-[var(--border)] rounded text-[10px] cursor-pointer focus:outline-none focus:border-[var(--accent)]"
+                  title="Model"
                 >
                   {modelsList.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
+                    <option key={m.id} value={m.id}>{m.name}</option>
                   ))}
                 </select>
-              </div>
-
-              {/* Scope Chip status */}
-              <div className="shrink-0 flex flex-col justify-end">
-                <div className="px-2 py-1.5 bg-[var(--border)]/40 border border-[var(--border)] rounded text-[9px] font-mono text-[var(--accent)] font-semibold">
-                  {currentSelectionLabel()}
-                </div>
-              </div>
-            </div>
-
-            {/* Optional guidance box */}
-            <div className="space-y-1">
-              <label className="text-[8px] uppercase tracking-wider opacity-60 font-bold">Optional Guidance</label>
-              <div className="flex gap-1.5 items-center">
-                <input
-                  type="text"
-                  value={guidance}
-                  disabled={submitting}
-                  onChange={(e) => setGuidance(e.target.value)}
-                  placeholder="e.g. Focus on John's emotional tension..."
-                  className="flex-1 p-1.5 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded focus:outline-none focus:border-[var(--accent)] text-xs"
-                />
                 <button
                   disabled={submitting || !selectedActionId}
                   onClick={handleSend}
-                  className="p-1.5 rounded bg-[var(--accent)] hover:opacity-95 text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center transition-all shrink-0 h-[30px] w-[30px]"
+                  className="px-3 py-1.5 rounded bg-[var(--accent)] hover:opacity-95 text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-all shrink-0 text-[11px] font-semibold"
                   title="Send request"
                 >
-                  {submitting ? (
-                    <Loader2 size={13} className="animate-spin text-white" />
-                  ) : (
-                    <Send size={12} />
-                  )}
+                  {submitting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                  Send
                 </button>
               </div>
             </div>
@@ -794,8 +829,17 @@ export default function AIPanel({
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-[var(--border)] shrink-0 flex items-center justify-between text-[9px] opacity-50 bg-black/5 dark:bg-white/5">
+      <div className="p-3 border-t border-[var(--border)] shrink-0 flex items-center justify-between text-[9px] opacity-60 bg-black/5 dark:bg-white/5">
         <span>xnovelist · Level L{workspaceAI.level}</span>
+        <button
+          onClick={() => setShowDebug((v) => !v)}
+          className={`uppercase tracking-wider font-semibold text-[8px] px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
+            showDebug ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400' : 'hover:bg-[var(--border)]/40'
+          }`}
+          title="Show model reasoning when available"
+        >
+          Debug
+        </button>
       </div>
     </div>
   );

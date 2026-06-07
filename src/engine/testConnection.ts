@@ -144,9 +144,11 @@ export async function testConnection(
       return { ok: false, error: 'Unknown provider.' };
     }
 
-    // 2. Perform Network Call with 60-second timeout to support deep thinking models and slow local LLMs
+    // 2. Perform Network Call. A local model can take minutes on its first
+    //    request while it loads into memory, so give local a long leash.
+    const timeoutMs = providerId === 'local' ? 30 * 60 * 1000 : 5 * 60 * 1000;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -188,7 +190,10 @@ export async function testConnection(
     let reply = '';
 
     if (providerId === 'anthropic') {
-      reply = data?.content?.[0]?.text || '';
+      // Content is an array of blocks; with extended thinking the first block is
+      // a `thinking` block, so find the `text` block rather than reading [0].
+      const blocks: Array<{ type?: string; text?: string }> = data?.content || [];
+      reply = blocks.filter((b) => b.type === 'text').map((b) => b.text || '').join('');
     } else {
       reply = data?.choices?.[0]?.message?.content || '';
     }
@@ -211,7 +216,8 @@ export async function testConnection(
     };
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'AbortError') {
-      return { ok: false, error: 'Connection timed out after 60 seconds. Check the base URL and network.' };
+      const mins = providerId === 'local' ? 30 : 5;
+      return { ok: false, error: `Connection timed out after ${mins} minutes. Check the base URL and network.` };
     }
     return {
       ok: false,

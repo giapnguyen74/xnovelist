@@ -1,5 +1,6 @@
 import { WorkspaceAIConfig, ProviderId, OpenAIProviderConfig, AnthropicProviderConfig, OpenRouterProviderConfig, LocalAIProviderConfig } from '../../storage/aiConfig';
-import { CallModel, ChatRequest, ChatResponse } from '../types';
+import { CallModel, ChatRequest, ChatResponse, DebugSink } from '../types';
+import { stripThinking } from './parseJson';
 
 const FALLBACK_MODELS: Record<ProviderId, string> = {
   openai: 'gpt-4o-mini',
@@ -7,6 +8,25 @@ const FALLBACK_MODELS: Record<ProviderId, string> = {
   openrouter: 'google/gemini-2.5-flash',
   local: '',
 };
+
+/**
+ * We do NOT cap output for OpenAI-style providers (openai / openrouter / local):
+ * `max_tokens` is omitted so the model runs to its natural stop or context
+ * limit — novel generation, like a code agent, wants room. Anthropic is the one
+ * exception: its API *requires* `max_tokens`, so we send this value when an
+ * action doesn't specify one. It's a safe default for current Claude models;
+ * a per-model ceiling (output limits differ) can refine it later.
+ */
+const ANTHROPIC_DEFAULT_MAX_TOKENS = 8192;
+
+/**
+ * Request timeouts (a safety net against a silently dead endpoint, not a budget).
+ * Local servers can take minutes on the *first* request while the model loads
+ * into memory, so they get a much longer leash than cloud providers. Override
+ * per call with `req.timeoutMs`.
+ */
+const CLOUD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const LOCAL_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes — covers cold model load
 
 /** Is a provider configured enough to make a call? */
 export function providerReady(config: WorkspaceAIConfig, pid: ProviderId): boolean {
@@ -34,11 +54,19 @@ export function resolveProvider(config: WorkspaceAIConfig): ProviderId | null {
  * Build a provider-agnostic `callModel` from the workspace config. The request
  * shaping mirrors `src/engine/testConnection.ts`, generalised for real prompts.
  * `preferFast` picks the provider's `fastModel` when available (used by the
- * background Level 1 tools).
+ * background Level 1 tools). `override` lets a single call target a specific
+ * provider/model — used by the Agent panel's per-request model picker.
  */
-export function makeCallModel(config: WorkspaceAIConfig, preferFast = false): CallModel {
+export function makeCallModel(
+  config: WorkspaceAIConfig,
+  preferFast = false,
+  override?: { providerId?: string; model?: string },
+  debug?: DebugSink
+): CallModel {
   return async (req: ChatRequest): Promise<ChatResponse> => {
-    const pid = resolveProvider(config);
+    const overridePid = override?.providerId as ProviderId | undefined;
+    const pid =
+      overridePid && providerReady(config, overridePid) ? overridePid : resolveProvider(config);
     if (!pid) {
       throw new Error('No AI provider is configured. Configure one in Settings.');
     }
@@ -48,6 +76,7 @@ export function makeCallModel(config: WorkspaceAIConfig, preferFast = false): Ca
     }
     const model =
       req.model ||
+      override?.model ||
       (preferFast ? p.fastModel : undefined) ||
       p.defaultModel ||
       FALLBACK_MODELS[pid];
@@ -68,7 +97,8 @@ export function makeCallModel(config: WorkspaceAIConfig, preferFast = false): Ca
         system: req.system,
         messages: [{ role: 'user', content: req.user }],
         temperature: req.temperature ?? 0.5,
-        max_tokens: req.maxTokens ?? 2048,
+        // Anthropic requires max_tokens; send the action's value or the default.
+        max_tokens: req.maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
       };
     } else {
       if (pid === 'local') {
@@ -97,12 +127,16 @@ export function makeCallModel(config: WorkspaceAIConfig, preferFast = false): Ca
           { role: 'user', content: req.user },
         ],
         temperature: req.temperature ?? 0.5,
-        max_tokens: req.maxTokens ?? 2048,
       };
+      // No artificial cap for OpenAI-style providers: omit max_tokens so the
+      // model runs to its natural stop / context limit. Only sent if an action
+      // explicitly requests a ceiling.
+      if (req.maxTokens) body.max_tokens = req.maxTokens;
     }
 
+    const timeoutMs = req.timeoutMs ?? (pid === 'local' ? LOCAL_TIMEOUT_MS : CLOUD_TIMEOUT_MS);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
       response = await fetch(endpoint, {
@@ -113,7 +147,13 @@ export function makeCallModel(config: WorkspaceAIConfig, preferFast = false): Ca
       });
     } catch (err: unknown) {
       clearTimeout(timeoutId);
-      if (err instanceof Error && err.name === 'AbortError') throw new Error('AI request timed out after 120 seconds.');
+      if (err instanceof Error && err.name === 'AbortError') {
+        const mins = Math.round(timeoutMs / 60000);
+        throw new Error(
+          `AI request timed out after ${mins} minute${mins === 1 ? '' : 's'}.` +
+            (pid === 'local' ? ' A local model can be slow on its first request while it loads.' : '')
+        );
+      }
       throw new Error('Could not reach the AI endpoint. Check the base URL and your network.');
     }
     clearTimeout(timeoutId);
@@ -130,19 +170,44 @@ export function makeCallModel(config: WorkspaceAIConfig, preferFast = false): Ca
     }
 
     const data = await response.json();
-    let text = '';
+    let rawText = '';
+    let providerReasoning = '';
     let inputTokens: number | undefined;
     let outputTokens: number | undefined;
+
     if (pid === 'anthropic') {
-      text = data?.content?.[0]?.text || '';
+      // Content is an array of blocks; with extended thinking the first block is
+      // a `thinking` block, so find the `text` block rather than reading [0].
+      const blocks: Array<{ type?: string; text?: string; thinking?: string }> = data?.content || [];
+      rawText = blocks.filter((b) => b.type === 'text').map((b) => b.text || '').join('').trim();
+      providerReasoning = blocks
+        .filter((b) => b.type === 'thinking')
+        .map((b) => b.thinking || '')
+        .join('\n\n')
+        .trim();
       inputTokens = data?.usage?.input_tokens;
       outputTokens = data?.usage?.output_tokens;
     } else {
-      text = data?.choices?.[0]?.message?.content || '';
+      // OpenAI-style. Some reasoning models expose chain-of-thought in a side
+      // field (`reasoning` / `reasoning_content`); the answer is in `content`.
+      const msg = data?.choices?.[0]?.message || {};
+      rawText = (msg.content as string) || '';
+      providerReasoning = ((msg.reasoning as string) || (msg.reasoning_content as string) || '').trim();
       inputTokens = data?.usage?.prompt_tokens;
       outputTokens = data?.usage?.completion_tokens;
     }
-    return { text: text.trim(), inputTokens, outputTokens };
+
+    // Strip inline <think>…</think> wrappers (local reasoning models) out of the
+    // usable text, and fold any captured thinking into the reasoning channel.
+    const { clean, thinking } = stripThinking(rawText);
+    const reasoning = [providerReasoning, thinking].filter(Boolean).join('\n\n');
+
+    if (debug) {
+      if (reasoning) debug.reasoning += (debug.reasoning ? '\n\n---\n\n' : '') + reasoning;
+      debug.raw += (debug.raw ? '\n\n---\n\n' : '') + rawText;
+    }
+
+    return { text: clean, reasoning: reasoning || undefined, inputTokens, outputTokens };
   };
 }
 

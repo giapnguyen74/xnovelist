@@ -159,6 +159,13 @@ Every tool button shows an estimated input-token count next to its label, comput
 
 The Settings modal includes a "per-action cost calibration" widget where the user can map their model to a USD-per-million-input-tokens and USD-per-million-output-tokens. If both are set, the button label includes an estimated USD cost ("Rephrase — ~0.04¢"). If only token counts are calibrated, USD is omitted.
 
+## Reasoning models
+
+Some models (OpenAI o-series, Anthropic extended thinking, local deepseek-r1 / QwQ) emit hidden chain-of-thought before any visible answer, and those reasoning tokens are drawn from the **output** budget. Two consequences shape our handling:
+
+- **Output budget is a ceiling, set generously.** `max_tokens` only truncates if the model would exceed it — it is not a target and costs nothing extra (local models bill nothing at all). A *small* cap is the danger: a reasoning model can spend the whole budget thinking and return empty content. We send a generous fallback ceiling (overridable per action, and per model later), because Anthropic requires the field and an unbounded local run can hit the context limit or the request timeout.
+- **Thinking is stripped from the answer but kept for debug.** The harness removes provider reasoning fields (`reasoning` / `reasoning_content`) and inline `<think>…</think>` wrappers before parsing, so a tool's JSON/prose output is clean. The captured thinking is held in memory only and shown in the Agent panel's optional **Debug** view; it is never persisted, exported, or sent anywhere — consistent with the privacy posture below. The Anthropic response is read from its `text` content block (not block `[0]`), so thinking blocks don't blank the answer.
+
 ## Privacy posture
 
 Four decisions enforce the local-first posture for AI specifically.

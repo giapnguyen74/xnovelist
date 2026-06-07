@@ -49,12 +49,14 @@ export async function runTool(
       ok: true,
       output: filteredResult,
       warnings: [],
+      reasoning: ctx.debug?.reasoning || undefined,
     };
   } catch (err: unknown) {
     return {
       ok: false,
       warnings: [],
       error: err instanceof Error ? err.message : String(err),
+      reasoning: ctx.debug?.reasoning || undefined,
     };
   }
 }

@@ -17,7 +17,7 @@ export const summarizeChapter: Action<SummarizeChapterInput> = {
 
     const { system, user } = buildPrompt('summarize_chapter', { prose: md }, ctx.lang);
 
-    const res = await ctx.callModel({ system, user, temperature: 0.4, maxTokens: 1200 });
+    const res = await ctx.callModel({ system, user, temperature: 0.4 });
     const text = res.text.trim();
     if (!text) {
       throw new Error('AI returned nothing — try again.');

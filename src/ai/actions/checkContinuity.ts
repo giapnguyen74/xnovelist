@@ -62,7 +62,7 @@ export const checkContinuity: Action<CheckContinuityInput> = {
     const context = 'STORY BIBLE:\n' + bible;
     const { system, user } = buildPrompt('check_continuity', { prose: md, context }, ctx.lang);
 
-    let res = await ctx.callModel({ system, user, temperature: 0.3, maxTokens: 1500 });
+    let res = await ctx.callModel({ system, user, temperature: 0.3 });
     let parsed = extractJson<{ flags: unknown[] }>(res.text);
 
     if (!parsed || !Array.isArray(parsed.flags)) {
