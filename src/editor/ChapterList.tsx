@@ -130,6 +130,15 @@ export default function ChapterList({
                       </div>
                     </div>
 
+                    {/* Synopsis preview */}
+                    <p className={`mt-1 text-[11px] line-clamp-2 leading-relaxed ${isActive ? 'text-white/80' : 'text-[var(--foreground)] opacity-65'}`}>
+                      {chapter.synopsis ? (
+                        chapter.synopsis
+                      ) : (
+                        <span className="italic opacity-45">{t('noSummary')}</span>
+                      )}
+                    </p>
+
                     <div className="flex items-center justify-between mt-1 text-[11px] opacity-70">
                       <span>
                         {wCount} {t('wordCount')}

@@ -40,11 +40,14 @@ export interface ToolContext {
   /** Prose language (`project.language`); drives the prompt pack. */
   lang: string;
   callModel: CallModel;
-  
+  /** Ordered chapter IDs — used to resolve the preceding chapter's continuity. */
+  chapterOrder: string[];
+
   // React state synchronization callbacks
   onUpdateCharacters?: (list: Character[]) => void;
   onUpdateLocations?: (list: Location[]) => void;
   onUpdateStyle?: (style: Style) => void;
+  /** Called after every continuity write; the page derives the synopsis cache from the new content. */
   onUpdateContinuity?: (chapterId: string, content: string) => Promise<void>;
 
   /** Optional debug sink; `callModel` appends each call's reasoning/raw output. */

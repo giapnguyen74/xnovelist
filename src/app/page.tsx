@@ -26,6 +26,7 @@ import { WorkspaceAIConfig, loadAIConfig, saveAIConfig, DEFAULT_AI_CONFIG } from
 import AIPanel from '../ui/AIPanel';
 import SettingsView from '../ui/SettingsView';
 import QuickCreateDialog, { isSmallSelection } from '../ui/QuickCreateDialog';
+import { deriveSynopsis } from '../ai/continuity';
 
 interface ProjectListItem {
   id: string;
@@ -680,6 +681,11 @@ export default function WorkspacePage() {
     setDeleteConfirmId(null);
 
     await storage.deleteFile(`${prefix}Artifacts/chapter-${id}.md`);
+    try {
+      await storage.deleteFile(`${prefix}Continuity/chapter-${id}.md`);
+    } catch (e) {
+      // ignore if continuity file does not exist
+    }
     await storage.writeFile(`${prefix}Project.json`, JSON.stringify(updatedProject));
 
     if (activeId) {
@@ -759,18 +765,6 @@ export default function WorkspacePage() {
     );
     setProjectList(updatedList);
     await storage.writeFile('projects.json', JSON.stringify(updatedList));
-  };
-
-  const handleUpdateChapterSynopsis = async (chapterId: string, synopsis: string) => {
-    if (!storage || !project) return;
-    const prefix = `projects/${project.id}/`;
-    
-    const updatedChapters = chapters.map(c => c.id === chapterId ? { ...c, synopsis } : c);
-    setChapters(updatedChapters);
-
-    const updatedProj = { ...project, chapters: updatedChapters };
-    setProject(updatedProj);
-    await storage.writeFile(`${prefix}Project.json`, JSON.stringify(updatedProj));
   };
 
   const handleUpdateChapterStatus = async (chapterId: string, status: Chapter['status']) => {
@@ -914,6 +908,15 @@ export default function WorkspacePage() {
 
     setContinuityList((prev) => ({ ...prev, [chapterId]: content }));
     await storage.writeFile(`${prefix}Continuity/chapter-${chapterId}.md`, content);
+
+    // Derive the synopsis cache from the continuity document
+    const synopsis = deriveSynopsis(content);
+    const updatedChapters = chapters.map((c) => (c.id === chapterId ? { ...c, synopsis } : c));
+    setChapters(updatedChapters);
+
+    const updatedProj = { ...project, chapters: updatedChapters };
+    setProject(updatedProj);
+    await storage.writeFile(`${prefix}Project.json`, JSON.stringify(updatedProj));
   };
 
   // ---- AI engine wiring (Level 1) ----------------------------------------
@@ -927,6 +930,7 @@ export default function WorkspacePage() {
       lang: project.language || 'en',
       debug,
       callModel: makeCallModel(workspaceAI, true, modelOverride, debug),
+      chapterOrder: project.chapterOrder || [],
       onUpdateCharacters: (list) => {
         setCharacters({ schemaVersion: 1, characters: list });
       },
@@ -1509,7 +1513,11 @@ export default function WorkspacePage() {
                 setActiveTab('editor');
               }}
               onCreateChapter={handleCreateChapter}
-              onUpdateChapterSynopsis={handleUpdateChapterSynopsis}
+              onSelectChapterContinuity={async (id) => {
+                await handleSelectChapter(id);
+                setBibleTab('continuity');
+                setActiveTab('bible');
+              }}
               onUpdateChapterStatus={handleUpdateChapterStatus}
               onDeleteChapter={handleDeleteChapter}
               onReorderChapters={handleReorderChapters}

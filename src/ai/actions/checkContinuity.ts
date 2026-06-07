@@ -55,11 +55,32 @@ export const checkContinuity: Action<CheckContinuityInput> = {
     }
 
     const bible = await readBibleContext(ctx);
-    if (!bible.trim()) {
+
+    // Resolve preceding chapter continuity
+    const activeIdx = ctx.chapterOrder.indexOf(chapterId);
+    let precedingContinuity = '';
+    if (activeIdx > 0) {
+      const prevId = ctx.chapterOrder[activeIdx - 1];
+      try {
+        precedingContinuity = (await ctx.storage.readFile(`${ctx.prefix}Continuity/chapter-${prevId}.md`)) || '';
+      } catch {
+        // ignore
+      }
+    }
+
+    const contextParts: string[] = [];
+    if (bible.trim()) {
+      contextParts.push(`STORY BIBLE:\n${bible.trim()}`);
+    }
+    if (precedingContinuity.trim()) {
+      contextParts.push(`PRECEDING CHAPTER'S CONTINUITY:\n${precedingContinuity.trim()}`);
+    }
+
+    if (contextParts.length === 0) {
       return { type: 'report', items: [] };
     }
 
-    const context = 'STORY BIBLE:\n' + bible;
+    const context = contextParts.join('\n\n');
     const { system, user } = buildPrompt('check_continuity', { prose: md, context }, ctx.lang);
 
     let res = await ctx.callModel({ system, user, temperature: 0.3 });

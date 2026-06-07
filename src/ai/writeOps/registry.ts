@@ -5,6 +5,7 @@ import { locationAdd } from './locationAdd';
 import { locationUpdate } from './locationUpdate';
 import { styleSet } from './styleSet';
 import { appendContinuity } from './appendContinuity';
+import { continuitySet } from './continuitySet';
 
 export const ALL_WRITE_OPS: readonly WriteOp[] = Object.freeze([
   characterAdd,
@@ -13,6 +14,7 @@ export const ALL_WRITE_OPS: readonly WriteOp[] = Object.freeze([
   locationUpdate,
   styleSet,
   appendContinuity,
+  continuitySet,
 ]);
 
 export function findWriteOp(id: string): WriteOp | undefined {

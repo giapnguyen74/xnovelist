@@ -125,6 +125,8 @@
   "statusFinal": "Hoàn thiện",
   "synopsisPlaceholder": "Mô tả cảnh, mục tiêu hoặc đề cương của chương này...",
   "noSynopsis": "Chưa có tóm tắt. Nhấn vào đây để tóm tắt chương này.",
+  "noSummary": "Chưa có tóm tắt",
+  "editContinuityTooltip": "Nhấp để chỉnh sửa mạch truyện trong Tài liệu nền",
   "newChapterCard": "Chương mới",
   "addNextChapter": "Thêm chương tiếp theo",
 
@@ -204,7 +206,7 @@
   "presentTense": "Thì hiện tại",
   "rhythmPrefs": "Sở thích nhịp điệu câu văn",
   "vocabularyStyle": "Phong cách từ vựng (từ ưa dùng)",
-  "inheritedFromPrev": "Kế thừa từ chương trước",
+  "inheritedFromPrev": "Bối cảnh AI kế thừa (Mạch liên tục của chương trước)",
   "noPrevContinuity": "Không có liên tục từ chương trước.",
   "establishedByActive": "Thiết lập bởi chương đang mở",
 

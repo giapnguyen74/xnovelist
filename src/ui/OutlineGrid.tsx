@@ -10,7 +10,7 @@ interface OutlineGridProps {
   chaptersWithHistory: Set<string>;
   onSelectChapter: (id: string) => void;
   onCreateChapter: () => void;
-  onUpdateChapterSynopsis: (id: string, synopsis: string) => void;
+  onSelectChapterContinuity: (id: string) => void;
   onUpdateChapterStatus: (id: string, status: Chapter['status']) => void;
   onDeleteChapter: (id: string) => void;
   onReorderChapters: (newOrder: string[]) => void;
@@ -24,15 +24,13 @@ export default function OutlineGrid({
   chaptersWithHistory,
   onSelectChapter,
   onCreateChapter,
-  onUpdateChapterSynopsis,
+  onSelectChapterContinuity,
   onUpdateChapterStatus,
   onDeleteChapter,
   onReorderChapters,
   onOpenHistory,
 }: OutlineGridProps) {
   const { t } = useTranslation();
-  const [editingSynId, setEditingSynId] = useState<string | null>(null);
-  const [editingSynValue, setEditingSynValue] = useState('');
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
@@ -58,19 +56,6 @@ export default function OutlineGrid({
     newOrder.splice(index, 0, removed);
     onReorderChapters(newOrder);
     setDraggedIndex(null);
-  };
-
-
-
-  // Inline Synopsis editing
-  const startEditingSynopsis = (chapter: Chapter) => {
-    setEditingSynId(chapter.id);
-    setEditingSynValue(chapter.synopsis || '');
-  };
-
-  const commitSynopsis = (id: string) => {
-    onUpdateChapterSynopsis(id, editingSynValue.trim());
-    setEditingSynId(null);
   };
 
   return (
@@ -150,27 +135,19 @@ export default function OutlineGrid({
                   </div>
 
                   {/* Inline Synopsis box */}
-                  <div className="min-h-[90px] border border-dashed border-[var(--border)]/60 bg-[var(--editor-bg)]/40 p-2 text-xs relative group/syn">
-                    {editingSynId === chapter.id ? (
-                      <textarea
-                        value={editingSynValue}
-                        onChange={(e) => setEditingSynValue(e.target.value)}
-                        onBlur={() => commitSynopsis(chapter.id)}
-                        className="w-full h-[85px] bg-transparent text-[var(--foreground)] focus:outline-none resize-none text-[11px] leading-relaxed"
-                        placeholder={t('synopsisPlaceholder')}
-                        autoFocus
-                      />
-                    ) : (
-                      <p
-                        onClick={() => startEditingSynopsis(chapter)}
-                        className="text-[11px] opacity-75 leading-relaxed cursor-text line-clamp-5 whitespace-pre-wrap select-text h-[85px]"
-                        title={t('renameChapter')}
-                      >
-                        {chapter.synopsis || (
-                          <span className="italic opacity-45 block">{t('noSynopsis')}</span>
-                        )}
-                      </p>
-                    )}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectChapterContinuity(chapter.id);
+                    }}
+                    className="min-h-[90px] border border-dashed border-[var(--border)]/60 bg-[var(--editor-bg)]/40 p-2 text-xs relative group/syn cursor-pointer hover:border-[var(--accent)]/50 transition-all"
+                    title={t('editContinuityTooltip')}
+                  >
+                    <p className="text-[11px] opacity-75 leading-relaxed line-clamp-5 whitespace-pre-wrap select-text h-[85px] cursor-pointer">
+                      {chapter.synopsis || (
+                        <span className="italic opacity-45 block">{t('noSynopsis')}</span>
+                      )}
+                    </p>
                   </div>
                 </div>
 

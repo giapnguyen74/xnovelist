@@ -1,4 +1,4 @@
-import { Action, ToolContext, SummarizeChapterInput, ProposalResult } from '../types';
+import { Action, SummarizeChapterInput, ProposalResult } from '../types';
 import { buildPrompt } from '../prompts/buildPrompt';
 
 export const summarizeChapter: Action<SummarizeChapterInput> = {
@@ -7,7 +7,7 @@ export const summarizeChapter: Action<SummarizeChapterInput> = {
   description: 'Propose a continuity summary for the active chapter.',
   level: 1,
   scope: 'chapter',
-  allow: ['append_continuity'],
+  allow: ['continuity_set'],
   async propose(input, ctx): Promise<ProposalResult> {
     const chapterId = input.chapterId || ctx.project.activeChapterId;
     const md = (await ctx.storage.readFile(`${ctx.prefix}Artifacts/chapter-${chapterId}.md`)) || '';
@@ -15,7 +15,34 @@ export const summarizeChapter: Action<SummarizeChapterInput> = {
       throw new Error('This chapter is empty — nothing to summarize.');
     }
 
-    const { system, user } = buildPrompt('summarize_chapter', { prose: md }, ctx.lang);
+    // Resolve preceding chapter continuity
+    const activeIdx = ctx.chapterOrder.indexOf(chapterId);
+    const chapterN = activeIdx + 1;
+    const chapter = ctx.project.chapters.find((c) => c.id === chapterId);
+    const title = chapter ? chapter.title : '';
+
+    let precedingContinuity = '';
+    if (activeIdx > 0) {
+      const prevId = ctx.chapterOrder[activeIdx - 1];
+      try {
+        precedingContinuity = (await ctx.storage.readFile(`${ctx.prefix}Continuity/chapter-${prevId}.md`)) || '';
+      } catch {
+        // ignore
+      }
+    }
+
+    const contextParts: string[] = [
+      `ACTIVE CHAPTER: Chapter ${chapterN} — ${title}`,
+    ];
+    if (precedingContinuity.trim()) {
+      contextParts.push(`PRECEDING CHAPTER'S CONTINUITY:\n${precedingContinuity.trim()}`);
+    }
+
+    const { system, user } = buildPrompt(
+      'summarize_chapter',
+      { prose: md, context: contextParts.join('\n\n') },
+      ctx.lang
+    );
 
     const res = await ctx.callModel({ system, user, temperature: 0.4 });
     const text = res.text.trim();
@@ -27,7 +54,7 @@ export const summarizeChapter: Action<SummarizeChapterInput> = {
       type: 'text',
       text: text,
       suggestedOp: {
-        op: 'append_continuity',
+        op: 'continuity_set',
         args: {
           chapterId,
           text: text,

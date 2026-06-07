@@ -125,6 +125,8 @@
   "statusFinal": "Final",
   "synopsisPlaceholder": "Describe the scenes, goals, or outline of this chapter...",
   "noSynopsis": "No synopsis added. Click here to summarize this chapter.",
+  "noSummary": "No summary",
+  "editContinuityTooltip": "Click to edit chapter continuity in Story Bible",
   "newChapterCard": "New Chapter Card",
   "addNextChapter": "Add next chapter draft sequence",
 
@@ -204,7 +206,7 @@
   "presentTense": "Present Tense",
   "rhythmPrefs": "Sentence / Rhythm Preferences",
   "vocabularyStyle": "Vocabulary Style (Favored words)",
-  "inheritedFromPrev": "Inherited from previous chapter",
+  "inheritedFromPrev": "AI Inherited Context (Preceding chapter's continuity)",
   "noPrevContinuity": "No preceding chapter continuity.",
   "establishedByActive": "Established by active chapter",
 

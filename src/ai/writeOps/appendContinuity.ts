@@ -25,18 +25,22 @@ export const appendContinuity: WriteOp<AppendContinuityArgs> = {
       kind: 'edit',
     };
   },
-  async execute(args, ctx) {
+  async execute(args, ctx: ToolContext) {
     const filePath = `${ctx.prefix}Continuity/chapter-${args.chapterId}.md`;
     let existing = '';
     try {
       existing = (await ctx.storage.readFile(filePath)) || '';
     } catch {
-      // ignore
+      // ignore — file may not exist yet
     }
 
-    const merged = existing.trim() ? `${existing.trim()}\n\n${args.text.trim()}` : args.text.trim();
+    const merged = existing.trim()
+      ? `${existing.trim()}\n\n${args.text.trim()}`
+      : args.text.trim();
+
     await ctx.storage.writeFile(filePath, merged);
 
+    // Refresh synopsis cache on the page side via onUpdateContinuity.
     if (ctx.onUpdateContinuity) {
       await ctx.onUpdateContinuity(args.chapterId, merged);
     }
