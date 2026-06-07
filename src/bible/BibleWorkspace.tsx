@@ -70,16 +70,16 @@ export default function BibleWorkspace({
   const selectedItemId = propSelectedItemId !== undefined ? propSelectedItemId : localSelectedItemId;
   const setSelectedItemId = onSelectItem !== undefined ? onSelectItem : setLocalSelectedItemId;
 
-  const handleAvatarChange = (
+  const handleAvatarChange = <T extends object>(
     e: React.ChangeEvent<HTMLInputElement>,
-    activeEntity: any,
-    updateFn: (updated: any) => void
+    activeEntity: T,
+    updateFn: (updated: T) => void
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onloadend = () => {
-      updateFn({ ...activeEntity, avatar: reader.result as string });
+      updateFn({ ...activeEntity, avatar: reader.result as string } as T);
     };
     reader.readAsDataURL(file);
   };

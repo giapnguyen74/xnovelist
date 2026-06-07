@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Settings, History, Plus, FolderPlus, ArrowLeft, Download,
-  Menu, MoreHorizontal, X as CloseIcon, BookOpen, Maximize2, Sparkles,
+  Menu, MoreHorizontal, X as CloseIcon, BookOpen, Maximize2, Sparkles, MessageSquare
 } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { IndexedDBProjectStorage } from '../storage/IndexedDBProjectStorage';
@@ -14,7 +14,7 @@ import { runTool, executeWriteOp } from '../ai/runTool';
 import { makeCallModel } from '../ai/llm/client';
 import { ToolContext, ToolResult, ProposalResult } from '../ai/types';
 import ChapterList from '../editor/ChapterList';
-import EditorCanvas from '../editor/EditorCanvas';
+import EditorCanvas, { EditorCanvasRef } from '../editor/EditorCanvas';
 import BibleWorkspace from '../bible/BibleWorkspace';
 import ExportImportDialog from '../ui/ExportImportDialog';
 import SnapshotHistoryDialog from '../ui/SnapshotHistoryDialog';
@@ -27,7 +27,26 @@ import AIPanel, { TranscriptTurn } from '../ui/AIPanel';
 import SettingsView from '../ui/SettingsView';
 import QuickCreateDialog, { isSmallSelection } from '../ui/QuickCreateDialog';
 import SelectionAIToolbar from '../ui/SelectionAIToolbar';
+import FlashPage from '../ui/FlashPage';
 import { deriveSynopsis } from '../ai/continuity';
+
+const GithubIcon = ({ size = 16, className = "" }: { size?: number; className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={`lucide lucide-github ${className}`}
+  >
+    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+    <path d="M9 18c-4.51 2-5-2-7-2"/>
+  </svg>
+);
 
 interface ProjectListItem {
   id: string;
@@ -49,6 +68,7 @@ export default function WorkspacePage() {
   const [hideSelectionToolbar, setHideSelectionToolbar] = useState(false);
   const [showAISettingsPage, setShowAISettingsPage] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'general' | 'ai'>('general');
+  const [showFlashPage, setShowFlashPage] = useState(false);
 
   // Dashboard state
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
@@ -95,7 +115,7 @@ export default function WorkspacePage() {
   useEffect(() => {
     setHideSelectionToolbar(false);
   }, [selectionText]);
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<EditorCanvasRef>(null);
   const [style, setStyle] = useState<Style>({
     schemaVersion: 1,
     rhythm: { avgSentenceLengthHint: '', paragraphLengthHint: '', rhythmNotes: '' },
@@ -162,6 +182,16 @@ export default function WorkspacePage() {
         } catch {
           // ignore
         }
+      }
+    }
+  }, []);
+
+  // Show flash page splash screen on first session load
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const shown = sessionStorage.getItem('xnovelist_flash_shown');
+      if (!shown) {
+        setShowFlashPage(true);
       }
     }
   }, []);
@@ -1011,6 +1041,17 @@ export default function WorkspacePage() {
     }
   };
 
+  if (showFlashPage) {
+    return (
+      <FlashPage
+        onDismiss={() => {
+          sessionStorage.setItem('xnovelist_flash_shown', 'true');
+          setShowFlashPage(false);
+        }}
+      />
+    );
+  }
+
   if (!storage) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-[var(--background)] text-[var(--foreground)]">
@@ -1050,6 +1091,28 @@ export default function WorkspacePage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* GitHub Link Badge */}
+              <a
+                href="https://github.com/giapnguyen74/xnovelist"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--border)]/30 hover:bg-[var(--accent)]/10 hover:text-[var(--accent)] transition-all text-[10px] font-mono cursor-pointer border border-[var(--border)]/50 hover:border-[var(--accent)]/20"
+              >
+                <GithubIcon size={11} className="opacity-80" />
+                <span>giapnguyen74/xnovelist</span>
+              </a>
+
+              {/* Feedback Link Badge */}
+              <a
+                href="https://forms.gle/42RaT4ZCjLJreTsG7"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--border)]/30 hover:bg-[var(--accent)]/10 hover:text-[var(--accent)] transition-all text-[10px] font-mono cursor-pointer border border-[var(--border)]/50 hover:border-[var(--accent)]/20"
+              >
+                <MessageSquare size={11} className="opacity-80 text-[var(--accent)]" />
+                <span>Feedback</span>
+              </a>
+
               {/* Theme toggler */}
               <button
                 onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -1366,6 +1429,17 @@ export default function WorkspacePage() {
             >
               <Download size={16} />
             </button>
+
+            {/* Feedback Link */}
+            <a
+              href="https://forms.gle/42RaT4ZCjLJreTsG7"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:block p-1.5 rounded hover:bg-[var(--border)] text-[var(--foreground)] opacity-80 hover:opacity-100 transition-colors"
+              title="Give Feedback"
+            >
+              <MessageSquare size={16} />
+            </a>
 
             {/* General settings moved to Dashboard for workspace-level global scope */}
 

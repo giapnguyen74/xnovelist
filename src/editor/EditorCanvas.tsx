@@ -114,6 +114,8 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // Character/Location/Item card popup states
+  // Heterogeneous bible entity (character/location/item) rendered dynamically in the card.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [clickedEntity, setClickedEntity] = useState<{ type: 'character' | 'location' | 'item'; data: any } | null>(null);
   const [characterCardPosition, setCharacterCardPosition] = useState({ x: 0, y: 0 });
   const [isCharacterCardOpen, setIsCharacterCardOpen] = useState(false);
@@ -123,6 +125,7 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
   useEffect(() => {
     handleHighlightClickRef.current = (type, aliasText, event) => {
       const cleanText = aliasText.trim().toLowerCase();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let match: any = null;
       if (type === 'character' && characters) {
         match = characters.find(char => {

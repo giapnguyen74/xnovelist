@@ -23,7 +23,7 @@ interface SelectionAIToolbarProps {
   aiLevel: number;
 }
 
-const ICON_MAP: Record<string, React.ComponentType<any>> = {
+const ICON_MAP: Record<string, React.ComponentType<{ size?: number | string; className?: string }>> = {
   fix_grammar: CheckSquare,
   rephrase: Languages,
   shorten: Scissors,

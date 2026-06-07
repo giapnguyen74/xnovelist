@@ -64,8 +64,8 @@ export const polishDialogue: Action<CaptureInput> = {
       const chars = rawChars ? JSON.parse(rawChars).characters || [] : [];
       const locs = rawLocs ? JSON.parse(rawLocs).locations || [] : [];
       
-      const charNames = chars.flatMap((c: any) => [c.name, ...(c.aliases || [])]).filter(Boolean);
-      const locNames = locs.flatMap((l: any) => [l.name, ...(l.aliases || [])]).filter(Boolean);
+      const charNames = chars.flatMap((c: { name?: string; aliases?: string[] }) => [c.name, ...(c.aliases || [])]).filter(Boolean);
+      const locNames = locs.flatMap((l: { name?: string; aliases?: string[] }) => [l.name, ...(l.aliases || [])]).filter(Boolean);
 
       const charWarnings = checkNamesPreserved(charNames, selectionText, text, 'character');
       const locWarnings = checkNamesPreserved(locNames, selectionText, text, 'location');
