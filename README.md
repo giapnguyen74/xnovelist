@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.png" alt="xnovelist" width="180" />
+</p>
+
 # xnovelist
 
 *[English](#xnovelist) · [Tiếng Việt](#xnovelist--tiếng-việt)*
