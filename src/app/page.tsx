@@ -8,7 +8,7 @@ import {
 import { useTranslation } from '../i18n/useTranslation';
 import { IndexedDBProjectStorage } from '../storage/IndexedDBProjectStorage';
 import { ProjectStorage } from '../storage/ProjectStorage';
-import { Project, Chapter, Character, Location, Item, Style, CharacterSchema, LocationSchema, ItemSchema } from '../storage/schemas';
+import { Project, Chapter, Character, Location, Item, Style, CharacterSchema, LocationSchema, ItemSchema, SnapshotIndex } from '../storage/schemas';
 import { takeSnapshot } from '../storage/snapshots';
 import { runTool, executeWriteOp } from '../ai/runTool';
 import { makeCallModel } from '../ai/llm/client';
@@ -794,12 +794,12 @@ export default function WorkspacePage() {
 
     const indexStr = await storage.readFile(indexPath);
     if (!indexStr) throw new Error('No history index found for chapter to restore');
-    const indexData = JSON.parse(indexStr);
+    const indexData: SnapshotIndex = JSON.parse(indexStr);
     const snaps = indexData.snapshots || [];
     if (snaps.length === 0) throw new Error('No snapshots found for chapter to restore');
 
     // Sort by createdAt descending to get the most recent snapshot
-    const sortedSnaps = [...snaps].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const sortedSnaps = [...snaps].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const lastSnap = sortedSnaps[0];
 
     const snapPath = `${prefix}.history/Artifacts/chapter-${id}/${lastSnap.id}.md`;
@@ -820,8 +820,8 @@ export default function WorkspacePage() {
     };
 
     const existingChapters = project.chapters || [];
-    const updatedChapters = existingChapters.some((c: any) => c.id === id)
-      ? existingChapters.map((c: any) => c.id === id ? { ...c, updatedAt: new Date().toISOString() } : c)
+    const updatedChapters = existingChapters.some((c) => c.id === id)
+      ? existingChapters.map((c) => c.id === id ? { ...c, updatedAt: new Date().toISOString() } : c)
       : [...existingChapters, restoredChapter];
 
     const updatedOrder = project.chapterOrder.includes(id)

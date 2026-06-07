@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { RotateCcw, Trash2, AlertCircle } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { ProjectStorage } from '../storage/ProjectStorage';
+import { SnapshotIndex } from '../storage/schemas';
 
 interface Tombstone {
   id: string;
@@ -50,10 +51,10 @@ export default function RestoreDeletedChaptersDialog({
             try {
               const indexStr = await storage.readFile(file);
               if (indexStr) {
-                const indexData = JSON.parse(indexStr);
+                const indexData: SnapshotIndex = JSON.parse(indexStr);
                 const snaps = indexData.snapshots || [];
                 
-                const preDeleteSnap = snaps.find((s: any) => s.type === 'pre-delete');
+                const preDeleteSnap = snaps.find((s) => s.type === 'pre-delete');
                 const lastSnap = snaps[snaps.length - 1];
                 
                 let title = 'Untitled Chapter';
