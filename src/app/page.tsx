@@ -3,8 +3,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Settings, History, Plus, FolderPlus, ArrowLeft, Download,
-  Menu, MoreHorizontal, X as CloseIcon, BookOpen, Maximize2, Sparkles, MessageSquare
+  Menu, MoreHorizontal, X as CloseIcon, BookOpen, Maximize2, Sparkles, MessageSquare, HelpCircle
 } from 'lucide-react';
+import { startTour, shouldAutoRun, TourSurface } from '../onboarding/tours';
 import { useTranslation } from '../i18n/useTranslation';
 import { IndexedDBProjectStorage } from '../storage/IndexedDBProjectStorage';
 import { ProjectStorage } from '../storage/ProjectStorage';
@@ -464,6 +465,39 @@ export default function WorkspacePage() {
     }, intervalMs);
     return () => window.clearInterval(id);
   }, [storage, project?.id, project?.activeChapterId, snapshotIntervalMinutes]);
+
+  // Launch a page's guided tour. The editor tour spotlights the Agent Panel and
+  // Write Beat, which live *inside* the AI panel — so for the editor we open the
+  // panel first, then restore its prior open/closed state when the tour ends
+  // (the only state the tour touches). See works/13-action.md.
+  const launchTour = (surface: TourSurface, force: boolean) => {
+    if (!force && !shouldAutoRun(surface)) return;
+    const aiLevel = workspaceAI.level;
+    if (surface === 'editor' && aiLevel >= 1) {
+      const wasOpen = isAIPanelOpen;
+      setIsAIPanelOpen(true);
+      // Let the panel mount + finish its slide-in before spotlighting it.
+      window.setTimeout(() => {
+        startTour('editor', t, {
+          force: true,
+          aiLevel,
+          onEnd: () => { if (!wasOpen) setIsAIPanelOpen(false); },
+        });
+      }, 300);
+    } else {
+      requestAnimationFrame(() => startTour(surface, t, { force, aiLevel }));
+    }
+  };
+
+  // Auto-run the current page's guided tour the first time it's seen. Gated on a
+  // loaded project so we don't tour an empty shell.
+  useEffect(() => {
+    if (!project) return;
+    if (activeTab !== 'editor' && activeTab !== 'outline' && activeTab !== 'bible') return;
+    const raf = requestAnimationFrame(() => launchTour(activeTab, false));
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, project?.id, workspaceAI.level]);
 
   // Load selected project data
   const handleOpenProject = async (projId: string, customStore?: ProjectStorage) => {
@@ -1619,7 +1653,7 @@ export default function WorkspacePage() {
             </span>
 
             {/* View / Tab Workspace buttons — hidden on phone (replaced by bottom nav) */}
-            <div className="hidden sm:flex bg-[var(--border)] p-0.5 text-xs rounded-none">
+            <div data-tour="nav-tabs" className="hidden sm:flex bg-[var(--border)] p-0.5 text-xs rounded-none">
               <button
                 onClick={() => setActiveTab('editor')}
                 className={`px-3 py-1 font-semibold rounded-none transition-all cursor-pointer ${
@@ -1658,11 +1692,21 @@ export default function WorkspacePage() {
 
             {/* Snapshot history button */}
             <button
+              data-tour="snapshot-history"
               onClick={() => setIsHistoryOpen(true)}
               className="hidden sm:block p-1.5 rounded hover:bg-[var(--border)] text-[var(--foreground)] opacity-80 hover:opacity-100 transition-colors"
               title="Snapshots history"
             >
               <History size={16} />
+            </button>
+
+            {/* Guided tour — replays the current page's tour */}
+            <button
+              onClick={() => launchTour(activeTab, true)}
+              className="hidden sm:block p-1.5 rounded hover:bg-[var(--border)] text-[var(--foreground)] opacity-80 hover:opacity-100 transition-colors"
+              title={t('takeTour')}
+            >
+              <HelpCircle size={16} />
             </button>
 
             {/* Export and backup button */}
@@ -2067,6 +2111,7 @@ export default function WorkspacePage() {
               { label: t('distractionFree'), icon: Maximize2, onClick: () => { setIsDistractionFree(true); setIsMobileMoreOpen(false); } },
               { label: t('generalSettings'), icon: Settings, onClick: () => { setShowAISettingsPage(true); setSettingsTab('general'); setIsMobileMoreOpen(false); } },
               { label: t('aiSettings'), icon: Sparkles, onClick: () => { setShowAISettingsPage(true); setSettingsTab('ai'); setIsMobileMoreOpen(false); } },
+              { label: t('takeTour'), icon: HelpCircle, onClick: () => { setIsMobileMoreOpen(false); launchTour(activeTab, true); } },
               { label: t('giveFeedback'), icon: MessageSquare, onClick: () => { window.open('https://forms.gle/42RaT4ZCjLJreTsG7', '_blank'); setIsMobileMoreOpen(false); } },
             ].map(({ label, icon: Icon, onClick }) => (
               <button

@@ -3,8 +3,9 @@ import { useTranslation } from '../i18n/useTranslation';
 import {
   Sparkles, CheckCircle2, AlertCircle,
   ChevronDown, ChevronUp, Shield, ArrowRight, ArrowLeft,
-  Settings, Laptop, Send, Loader2, Terminal
+  Settings, Laptop, Send, Loader2, Terminal, HelpCircle
 } from 'lucide-react';
+import { startTour, resetAllTours } from '../onboarding/tours';
 import { WorkspaceAIConfig, ProviderId, OpenAIProviderConfig, AnthropicProviderConfig, OpenRouterProviderConfig, LocalAIProviderConfig } from '../storage/aiConfig';
 import { fetchOpenRouterModels, OpenRouterModel } from '../engine/providers/openrouter';
 import { suggestLocalBaseUrlCorrection, fetchLocalModels } from '../engine/providers/local';
@@ -39,6 +40,17 @@ export default function SettingsView({
 }: SettingsViewProps) {
   const { t, lang, setLang } = useTranslation();
   const [activeTab, setActiveTab] = useState<'general' | 'ai'>(defaultTab);
+
+  // Auto-run the settings tour the first time the AI subtab is shown (its level /
+  // model / reasoning controls live there). Read-only; deferred so the DOM exists.
+  useEffect(() => {
+    if (activeTab !== 'ai') return;
+    const raf = requestAnimationFrame(() => {
+      startTour('settings', t, { aiLevel: workspaceAI.level });
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, workspaceAI.level]);
 
   // Readiness checkers
   const isReady = (pid: ProviderId): boolean => {
@@ -295,7 +307,16 @@ export default function SettingsView({
             <ArrowLeft size={14} />
             <span>{backLabel || t('backToDashboard')}</span>
           </button>
-          
+
+          <button
+            onClick={() => startTour('settings', t, { force: true, aiLevel: workspaceAI.level })}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-[var(--border)] bg-white dark:bg-[#1a1a19] hover:bg-[var(--sidebar-bg)] transition-colors text-xs font-semibold cursor-pointer"
+            title={t('takeTour')}
+          >
+            <HelpCircle size={14} />
+            <span className="hidden sm:inline">{t('takeTour')}</span>
+          </button>
+
           <div className="text-right">
             <h1 className="text-xl font-bold tracking-wider uppercase flex items-center gap-2 justify-end">
               <Settings size={18} className="opacity-80" />
@@ -396,6 +417,22 @@ export default function SettingsView({
                   </select>
                 </div>
 
+                {/* Guided Tours */}
+                <div className="bg-[var(--sidebar-bg)]/20 border border-[var(--border)] p-5 space-y-3 rounded-lg flex flex-col justify-between">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-75">{t('tourSettingsReplayTitle')}</label>
+                    <p className="text-[10px] opacity-50">{t('tourSettingsReplayBody')}</p>
+                  </div>
+                  <button
+                    data-tour="settings-replay-tours"
+                    onClick={() => { resetAllTours(); startTour('settings', t, { force: true, aiLevel: workspaceAI.level }); }}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-xs font-semibold hover:border-[var(--accent)] transition-colors cursor-pointer"
+                  >
+                    <HelpCircle size={14} />
+                    <span>{t('replayTours')}</span>
+                  </button>
+                </div>
+
               </div>
             </div>
           )}
@@ -405,7 +442,7 @@ export default function SettingsView({
             <div className="space-y-6 animate-fade-in">
               
               {/* AI Level Slider */}
-              <div className="bg-[var(--sidebar-bg)]/20 border border-[var(--border)] p-5 space-y-4 rounded-lg">
+              <div data-tour="settings-ai-level" className="bg-[var(--sidebar-bg)]/20 border border-[var(--border)] p-5 space-y-4 rounded-lg">
                 <div className="flex items-center justify-between">
                   <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-75">AI Capability Level</label>
                   <span className="px-2 py-0.5 bg-[var(--accent-light)] text-[var(--accent)] rounded font-mono font-bold text-xs uppercase tracking-wider">
@@ -446,7 +483,7 @@ export default function SettingsView({
               {workspaceAI.level >= 1 ? (
                 <div className="space-y-4 animate-fade-in">
                   {/* AI Reasoning Mode control */}
-                  <div className="bg-[var(--sidebar-bg)]/20 border border-[var(--border)] p-5 space-y-4 rounded-lg">
+                  <div data-tour="settings-reasoning" className="bg-[var(--sidebar-bg)]/20 border border-[var(--border)] p-5 space-y-4 rounded-lg">
                     <div className="space-y-1">
                       <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-75">{t('aiReasoningLabel')}</label>
                       <div className="text-[10px] opacity-60 leading-normal">{t('aiReasoningDescription')}</div>
@@ -474,7 +511,7 @@ export default function SettingsView({
                     </div>
                   </div>
 
-                  <div className="space-y-1">
+                  <div data-tour="settings-model" className="space-y-1">
                     <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-75">AI Connection Services</label>
                     <div className="text-[10px] opacity-50">Credentials stay on this device. Connections are browser-direct.</div>
                   </div>

@@ -13,6 +13,7 @@
     "@tiptap/react": "^3.23.6",
     "@tiptap/starter-kit": "^3.23.6",
     "docx": "^9.7.1",
+    "driver.js": "^1.4.0",
     "idb": "^8.0.3",
     "lucide-react": "^1.16.0",
     "next": "15.5.18",

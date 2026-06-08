@@ -594,7 +594,7 @@ export default function AIPanel({
   }
 
   return (
-    <div className="w-80 h-full border-l border-[var(--border)] bg-[var(--sidebar-bg)] select-none flex flex-col text-xs text-[var(--foreground)] animate-slide-in relative z-30 shrink-0">
+    <div data-tour="agent-panel" className="w-80 h-full border-l border-[var(--border)] bg-[var(--sidebar-bg)] select-none flex flex-col text-xs text-[var(--foreground)] animate-slide-in relative z-30 shrink-0">
       {/* Header */}
       <div className="h-[53px] px-4 border-b border-[var(--border)] flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest">
@@ -1006,7 +1006,7 @@ export default function AIPanel({
         ) : (
           <div className="p-3 border-t border-[var(--border)] bg-black/10 dark:bg-white/5">
             {/* Goal box */}
-            <div className="border border-[var(--border)] rounded-lg bg-white dark:bg-[#1a1a19] p-2 space-y-2">
+            <div data-tour="write-beat" className="border border-[var(--border)] rounded-lg bg-white dark:bg-[#1a1a19] p-2 space-y-2">
               {/* Chips: action + context */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <div className="relative">

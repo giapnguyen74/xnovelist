@@ -73,6 +73,7 @@ export default function OutlineGrid({
             <p className="text-xs opacity-70">{projectAuthor}</p>
           </div>
           <button
+            data-tour="outline-new-chapter"
             onClick={onCreateChapter}
             className="flex items-center gap-1.5 px-4 py-2 bg-[var(--accent)] text-white hover:opacity-90 font-bold rounded-none text-xs transition-opacity shadow-sm cursor-pointer"
           >
@@ -82,7 +83,7 @@ export default function OutlineGrid({
         </div>
 
         {/* Outline Grid cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div data-tour="outline-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {orderedChapters.map((chapter, index) => {
             const wordCount = wordCounts[chapter.id] || 0;
             const hasHistory = chaptersWithHistory.has(chapter.id);

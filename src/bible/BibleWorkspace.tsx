@@ -170,7 +170,7 @@ export default function BibleWorkspace({
   return (
     <div className="flex flex-col h-full bg-[var(--background)] select-none">
       {/* Tabs */}
-      <div className="flex border-b border-[var(--border)] bg-[var(--sidebar-bg)] overflow-x-auto">
+      <div data-tour="bible-type-switcher" className="flex border-b border-[var(--border)] bg-[var(--sidebar-bg)] overflow-x-auto">
         <button
           onClick={() => setActiveTab('characters')}
           className={`flex items-center gap-2 px-5 py-3 border-b-2 text-sm font-medium transition-all ${
@@ -237,6 +237,7 @@ export default function BibleWorkspace({
               <div className="p-3 border-b border-[var(--border)] flex justify-between items-center">
                 <span className="text-xs uppercase tracking-wider opacity-60 font-semibold">{t('characters')}</span>
                 <button
+                  data-tour="bible-add"
                   onClick={handleAddChar}
                   className="p-1 rounded bg-[var(--accent)] text-white hover:opacity-90"
                 >
