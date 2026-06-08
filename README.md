@@ -72,7 +72,7 @@ This is how xnovelist stays neutral on the AI debate: AI is **off by default** a
 | **0** | Off | Nothing — no AI, no network calls | 100% yours |
 | **1** | Reader | Reads your book: capture characters/locations/style into the Story Bible, summarize a chapter, check continuity | nothing — notes only |
 | **2** | Editor | Light-touch edits to text *you selected*: rephrase, fix grammar, shorten, polish dialogue, sharpen detail | your words, refined |
-| **3** | Co-writer | Writes a passage inside a beat you outlined *(designed; in progress)* | AI prose, in a slot you defined |
+| **3** | Co-writer | Writes a passage inside a beat you outlined | AI prose, in a slot you defined |
 | **4** | Drafter | Drafts a scene you described *(designed)* | a draft awaiting your review |
 | **5** | Agent | Bounded, audit-logged work across the whole manuscript *(designed)* | drafts and reports |
 
@@ -85,6 +85,10 @@ Every AI result is a proposal in the Agent panel — you Accept or Reject; nothi
 ![The Agent panel proposing a change](assets/04-agent-panel.png)
 
 ![Reviewing the AI suggestion against your own text](assets/05-agent-panel2.png)
+
+With Level 3 (Co-writer) active, you can outline beats in-place and generate prose directly in the editor:
+
+![Outlining and writing beats in the editor](assets/06-beat-writting.png)
 
 ---
 
@@ -103,7 +107,8 @@ If you want a chat-based ghostwriter, a cloud collaboration suite, or a screenpl
 
 - **v0.1 — AI-free core.** Local-first IndexedDB persistence, safe snapshots, the writing canvas, character/location bible workspaces, DOCX export.
 - **v0.2–0.3 — Bring-your-own-AI + the level system.** Provider configuration (OpenAI, Anthropic, OpenRouter, local), connection testing, and the workspace level dial.
-- **v0.4–0.7 — The Agent engine, Levels 1 & 2.** A modular AI engine where the model only *proposes* and the app *applies* on your Accept: L1 capture/summary/continuity tools and L2 selection edits, surfaced as accept/reject cards in the Agent panel, with style/continuity-aware context and local guardrails. Levels 3–5 are designed and scaffolded.
+- **v0.4–0.7 — The Agent engine, Levels 1 & 2.** A modular AI engine where the model only *proposes* and the app *applies* on your Accept: L1 capture/summary/continuity tools and L2 selection edits, surfaced as accept/reject cards in the Agent panel, with style/continuity-aware context and local guardrails.
+- **v0.8–1.0 — Level 3 AI, Snapshots, and reasoning controls.** Inline co-writer beat generation, automatic snapshot intervals, dynamic word counts, and per-action reasoning policies. Levels 4–5 are designed and scaffolded.
 
 Design and decision logs live under [`works/`](works) (the `NN-action.md` slices) and [`docs/`](docs).
 
@@ -243,7 +248,7 @@ Bốn quyết định sản phẩm định hình mọi lựa chọn khác:
 | **0** | Tắt | Không gì — không AI, không gọi mạng | 100% của bạn |
 | **1** | Người đọc | Đọc tác phẩm: thu thập nhân vật/địa điểm/phong cách vào Story Bible, tóm tắt chương, kiểm tra mạch liên tục | không gì — chỉ ghi chú |
 | **2** | Biên tập | Chỉnh sửa nhẹ trên đoạn *bạn chọn*: diễn đạt lại, sửa ngữ pháp, rút gọn, trau chuốt hội thoại, làm sắc chi tiết | chữ của bạn, được mài giũa |
-| **3** | Đồng tác giả | Viết một đoạn trong một beat bạn đã phác *(đã thiết kế; đang làm)* | văn AI, trong khe bạn định nghĩa |
+| **3** | Đồng tác giả | Viết một đoạn trong một beat bạn đã phác | văn AI, trong khe bạn định nghĩa |
 | **4** | Người soạn nháp | Soạn nháp một cảnh bạn mô tả *(đã thiết kế)* | bản nháp chờ bạn duyệt |
 | **5** | Tác nhân | Làm việc trên toàn bản thảo, có giới hạn và ghi nhật ký *(đã thiết kế)* | bản nháp và báo cáo |
 
@@ -256,6 +261,10 @@ Mọi kết quả AI là một đề xuất trong Bảng Agent — bạn Chấp 
 ![Bảng Agent đề xuất một thay đổi](assets/04-agent-panel.png)
 
 ![Đối chiếu đề xuất của AI với văn của chính bạn](assets/05-agent-panel2.png)
+
+Với Cấp độ 3 (Đồng tác giả), bạn có thể phác thảo dàn ý phân đoạn (beat) tại chỗ và tạo văn xuôi trực tiếp trong trình soạn thảo:
+
+![Phác thảo và viết beat trực tiếp trong trình soạn thảo](assets/06-beat-writting.png)
 
 ---
 
@@ -274,7 +283,8 @@ Nếu bạn muốn một "người viết thuê" dạng chat, một bộ cộng 
 
 - **v0.1 — Lõi không-AI.** Lưu trữ cục bộ bằng IndexedDB, ảnh chụp nhanh an toàn, khung soạn thảo, không gian Story Bible cho nhân vật/địa điểm, xuất DOCX.
 - **v0.2–0.3 — Tự-mang-AI + hệ thống cấp độ.** Cấu hình nhà cung cấp (OpenAI, Anthropic, OpenRouter, cục bộ), kiểm tra kết nối, và núm xoay cấp độ.
-- **v0.4–0.7 — Engine Agent, Cấp 1 & 2.** Một engine AI mô-đun hóa, nơi mô hình chỉ *đề xuất* còn ứng dụng *áp dụng* khi bạn Chấp nhận: các công cụ Cấp 1 (thu thập/tóm tắt/kiểm tra mạch liên tục) và chỉnh sửa đoạn chọn ở Cấp 2, hiện ra dưới dạng thẻ chấp nhận/từ chối trong Bảng Agent, với ngữ cảnh nhận biết phong cách/mạch liên tục và các kiểm tra cục bộ. Cấp 3–5 đã được thiết kế và dựng khung.
+- **v0.4–0.7 — Engine Agent, Cấp 1 & 2.** Một engine AI mô-đun hóa, nơi mô hình chỉ *đề xuất* còn ứng dụng *áp dụng* khi bạn Chấp nhận: các công cụ Cấp 1 (thu thập/tóm tắt/kiểm tra mạch liên tục) và chỉnh sửa đoạn chọn ở Cấp 2, hiện ra dưới dạng thẻ chấp nhận/từ chối trong Bảng Agent, với ngữ cảnh nhận biết phong cách/mạch liên tục và các kiểm tra cục bộ.
+- **v0.8–1.0 — AI Cấp 3, Ảnh chụp nhanh và điều khiển lập luận.** Tạo văn xuôi theo beat tại chỗ, cấu hình chu kỳ chụp nhanh tự động, hiển thị số từ trực tiếp, và quy tắc lập luận AI theo hành động. Cấp 4–5 đã được thiết kế và dựng khung.
 
 Nhật ký thiết kế và quyết định nằm trong [`works/`](works) (các lát cắt `NN-action.md`) và [`docs/`](docs).
 
