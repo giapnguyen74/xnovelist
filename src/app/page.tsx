@@ -952,16 +952,17 @@ export default function WorkspacePage() {
         intent: '',
         createdAt: new Date().toISOString(),
       };
+      const merged = {
+        ...existing,
+        ...data,
+        type: (data.type || existing.type) as any,
+        length: (data.length ? Number(data.length) : existing.length) as any,
+        intent: data.intent !== undefined ? data.intent : existing.intent,
+        mode: data.mode !== undefined ? data.mode : existing.mode,
+      };
       const updated = {
         ...prev,
-        [beatId]: {
-          ...existing,
-          ...data,
-          type: (data.type || existing.type) as any,
-          length: (data.length ? Number(data.length) : existing.length) as any,
-          intent: data.intent !== undefined ? data.intent : existing.intent,
-          mode: data.mode !== undefined ? data.mode : existing.mode,
-        },
+        [beatId]: merged,
       };
       storage.writeFile(`${prefix}Beats.json`, JSON.stringify(updated));
       return updated;
@@ -1274,8 +1275,8 @@ export default function WorkspacePage() {
           editorRef.current.replaceRange(from, to, text, expected);
         }
       },
-      onInsertBeat: async (chapterId, beatId, text) => {
-        await handleInsertBeat(chapterId, beatId, text);
+      onInsertBeat: async (chapterId, beatId, text, beatParams) => {
+        await handleInsertBeat(chapterId, beatId, text, beatParams);
       },
     };
   };

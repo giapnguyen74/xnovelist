@@ -18,9 +18,8 @@ export const writeBeat: Action<BeatInput> = {
     {
       name: 'length',
       label: 'Target Length',
-      type: 'choice',
-      choices: ['200', '400', '600'],
-      default: '400',
+      type: 'number',
+      default: 400,
     },
   ],
   allow: ['insert_beat'],

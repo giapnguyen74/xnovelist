@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Search, ChevronDown, ChevronRight, Users, MapPin, Feather, Compass } from 'lucide-react';
+import { Plus, Trash2, Search, ChevronDown, ChevronRight, Users, MapPin, Feather, Compass, History } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import { Chapter, Character, Location } from '../storage/schemas';
 
@@ -82,13 +82,24 @@ export default function ChapterList({
         <>
           <div className="px-3 py-2 border-b border-[var(--border)]/40 flex items-center justify-between flex-shrink-0 bg-[var(--sidebar-bg)]">
             <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('chapters')}</span>
-            <button
-              onClick={onCreateChapter}
-              className="p-1 rounded hover:bg-[var(--border)] text-[var(--foreground)] transition-colors cursor-pointer"
-              title={t('addChapter')}
-            >
-              <Plus size={14} />
-            </button>
+            <div className="flex items-center gap-1">
+              {onOpenRestoreDeletedChapters && (
+                <button
+                  onClick={onOpenRestoreDeletedChapters}
+                  className="p-1 rounded hover:bg-[var(--border)] text-[var(--foreground)] opacity-70 hover:opacity-100 transition-colors cursor-pointer"
+                  title={t('restoreDeletedTitle')}
+                >
+                  <History size={14} />
+                </button>
+              )}
+              <button
+                onClick={onCreateChapter}
+                className="p-1 rounded hover:bg-[var(--border)] text-[var(--foreground)] transition-colors cursor-pointer"
+                title={t('addChapter')}
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
@@ -151,17 +162,7 @@ export default function ChapterList({
             )}
           </div>
 
-          {onOpenRestoreDeletedChapters && (
-            <div className="p-2 border-t border-[var(--border)]/35 flex-shrink-0 bg-[var(--sidebar-bg)] flex justify-center">
-              <button
-                onClick={onOpenRestoreDeletedChapters}
-                className="w-full py-1.5 rounded border border-dashed border-[var(--border)] hover:border-[var(--accent)]/50 text-[10px] font-bold text-[var(--foreground)] opacity-70 hover:opacity-100 hover:text-[var(--accent)] flex items-center justify-center gap-1 cursor-pointer transition-all bg-transparent"
-              >
-                <Trash2 size={11} className="text-red-500" />
-                <span>{t('restoreDeletedTitle')}</span>
-              </button>
-            </div>
-          )}
+
         </>
       ) : (
         <>

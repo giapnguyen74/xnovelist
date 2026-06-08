@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Sparkles, Bot, Loader2, AlertTriangle, Check, Send, CheckCircle2, ChevronDown, FileText, TextSelect } from 'lucide-react';
+import { Sparkles, Bot, Loader2, AlertTriangle, Check, Send, CheckCircle2, ChevronDown, FileText, TextSelect, Maximize2, Minimize2 } from 'lucide-react';
 import { WorkspaceAIConfig } from '../storage/aiConfig';
 import { actionsForLevel, findAction } from '../ai/registry';
 import { ToolResult, ProposalResult, ToolContext } from '../ai/types';
@@ -61,7 +61,6 @@ interface AIPanelProps {
   activeBeatId?: string | null;
   activeBeatData?: { type: string; length: number; intent: string; mode?: 'write_beat' | 'continue' } | null;
   getBeatSurroundingText?: (beatId: string) => { beforeText: string; afterText: string } | null;
-  onUpdateBeatData?: (beatId: string, data: Partial<{ type: string; length: number; intent: string; mode?: 'write_beat' | 'continue' }>) => void;
 }
 
 const getArgString = (args: Record<string, unknown>, key: string): string => {
@@ -93,7 +92,6 @@ export default function AIPanel({
   activeBeatId,
   activeBeatData,
   getBeatSurroundingText,
-  onUpdateBeatData,
 }: AIPanelProps) {
   const [scope, setScope] = useState<'chapter' | 'selection'>('chapter');
   const [localSelectedActionId, setLocalSelectedActionId] = useState<string>('');
@@ -106,6 +104,7 @@ export default function AIPanel({
   const [params, setParams] = useState<Record<string, string | number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [guidanceExpanded, setGuidanceExpanded] = useState(false);
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
@@ -133,6 +132,7 @@ export default function AIPanel({
         setGuidance('');
         setParams({});
       }
+      setGuidanceExpanded(false);
     }
   }, [activeBeatId, activeBeatData]);
 
@@ -411,6 +411,7 @@ export default function AIPanel({
     setTranscript((prev) => [...prev, newTurn]);
     if (selectedActionId !== 'write_beat' && selectedActionId !== 'continue') {
       setGuidance('');
+      setGuidanceExpanded(false);
     }
 
     try {
@@ -1037,14 +1038,24 @@ export default function AIPanel({
               )}
 
               {/* Guidance / goal text */}
-              <textarea
-                value={guidance}
-                disabled={submitting}
-                onChange={(e) => handleGuidanceChange(e.target.value)}
-                rows={2}
-                placeholder={selectedAction ? `${selectedAction.description} — add guidance (optional)…` : 'Add guidance (optional)…'}
-                className="w-full p-1.5 bg-transparent border border-[var(--border)] rounded focus:outline-none focus:border-[var(--accent)] text-xs resize-none"
-              />
+              <div className="relative w-full">
+                <textarea
+                  value={guidance}
+                  disabled={submitting}
+                  onChange={(e) => handleGuidanceChange(e.target.value)}
+                  rows={guidanceExpanded ? 12 : 2}
+                  placeholder={selectedAction ? `${selectedAction.description} — add guidance (optional)…` : 'Add guidance (optional)…'}
+                  className="w-full p-1.5 pr-8 bg-transparent border border-[var(--border)] rounded focus:outline-none focus:border-[var(--accent)] text-xs resize-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setGuidanceExpanded(!guidanceExpanded)}
+                  className="absolute right-1.5 top-1.5 p-1 rounded hover:bg-[var(--border)] text-[var(--foreground)] opacity-60 hover:opacity-100 transition-all cursor-pointer"
+                  title={guidanceExpanded ? 'Collapse Guidance Input' : 'Expand Guidance Input'}
+                >
+                  {guidanceExpanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                </button>
+              </div>
 
               {/* Dynamic params — depend on the chosen action */}
               {selectedAction?.params && selectedAction.params.length > 0 && (
