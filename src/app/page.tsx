@@ -947,32 +947,6 @@ export default function WorkspacePage() {
     return beats[beatId] || null;
   };
 
-  const handleUpdateBeatData = (beatId: string, data: Partial<{ type: string; length: number; intent: string; mode?: 'write_beat' | 'continue' }>) => {
-    if (!project || !storage) return;
-    const prefix = `projects/${project.id}/`;
-    setBeats((prev) => {
-      const existing = prev[beatId] || {
-        type: 'action',
-        length: 400,
-        intent: '',
-        createdAt: new Date().toISOString(),
-      };
-      const merged = {
-        ...existing,
-        ...data,
-        type: (data.type || existing.type) as any,
-        length: (data.length ? Number(data.length) : existing.length) as any,
-        intent: data.intent !== undefined ? data.intent : existing.intent,
-        mode: data.mode !== undefined ? data.mode : existing.mode,
-      };
-      const updated = {
-        ...prev,
-        [beatId]: merged,
-      };
-      storage.writeFile(`${prefix}Beats.json`, JSON.stringify(updated));
-      return updated;
-    });
-  };
 
   // Editor prose save handler — writes to the chapter that initiated the save
   // (not necessarily the currently-active one, in case the user switched
@@ -1906,7 +1880,6 @@ export default function WorkspacePage() {
                 activeBeatId={activeBeatId}
                 activeBeatData={activeBeatId ? beats[activeBeatId] : null}
                 getBeatSurroundingText={(beatId) => editorRef.current?.getBeatSurroundingText(beatId) || null}
-                onUpdateBeatData={handleUpdateBeatData}
               />
               <SnapshotHistoryPanel
                 isOpen={isHistoryOpen}
