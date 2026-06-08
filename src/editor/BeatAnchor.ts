@@ -166,7 +166,7 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
   },
 
   addProseMirrorPlugins() {
-    const extension = this;
+    const { options } = this;
     return [
       new Plugin({
         key: beatPluginKey,
@@ -202,10 +202,10 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
         },
         state: {
           init(config, state) {
-            return findBeatMatches(state.doc, extension.options.getBeatData);
+            return findBeatMatches(state.doc, options.getBeatData);
           },
           apply(tr, value, oldState, newState) {
-            return findBeatMatches(newState.doc, extension.options.getBeatData);
+            return findBeatMatches(newState.doc, options.getBeatData);
           },
         },
         props: {
@@ -218,7 +218,7 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
   },
 
   addNodeView() {
-    return ({ node, HTMLAttributes, extension, getPos, editor }) => {
+    return ({ node }) => {
       const dom = document.createElement('div');
       const id = node.attrs.id;
 

@@ -250,10 +250,11 @@ export default function FormatToolbar({
                 ]).run();
               }
             }}
-            className="p-1.5 rounded hover:bg-[var(--border)] text-[var(--foreground)] transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-[var(--border)] text-[var(--foreground)] transition-colors cursor-pointer text-xs font-semibold"
             title="Insert Beat Caret (Cmd/Ctrl + Shift + B)"
           >
-            <Sparkles size={16} className="text-amber-600 dark:text-amber-400" />
+            <Sparkles size={14} className="text-amber-600 dark:text-amber-400" />
+            <span>Beat</span>
           </button>
         )}
       </div>
