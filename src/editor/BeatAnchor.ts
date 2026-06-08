@@ -218,31 +218,29 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
   },
 
   addNodeView() {
-    return ({ node, getPos, editor }) => {
+    return ({ node, getPos, editor }: { node: any; getPos: any; editor: any }) => {
       const dom = document.createElement('div');
       const id = node.attrs.id;
+      let latestNode = node;
+      let lastWordCount = -1;
 
       dom.style.userSelect = 'none';
 
-      // Live word count of the beat's bound body (the block adjacent to the
-      // header). The writer trims to taste; nothing truncates the prose for them.
-      const computeBodyWordCount = (): number => {
+      // Word count of the adjacent bound narrative block. Beats are single-paragraph
+      // by design, so the one block after the header is the whole beat body.
+      const computeBodyWordCount = (currNode: typeof node): number => {
         try {
-          const pos = typeof getPos === 'function' ? getPos() : null;
-          if (pos == null) return 0;
-          const doc = editor.state.doc;
-          const self = doc.nodeAt(pos);
-          if (!self) return 0;
-          const startPos = pos + self.nodeSize;
-          const nextNode = doc.nodeAt(startPos);
+          const absolutePos = typeof getPos === 'function' ? getPos() : null;
+          if (absolutePos === null || absolutePos === undefined) return 0;
+          const nextNode = editor.state.doc.nodeAt(absolutePos + currNode.nodeSize);
           if (nextNode && nextNode.isBlock && nextNode.type.name !== 'beatAnchor') {
-            const text = (nextNode.textContent || '').trim();
-            return text ? text.split(/\s+/).length : 0;
+            const text = nextNode.textContent || '';
+            return text.trim().split(/\s+/).filter(Boolean).length;
           }
-          return 0;
-        } catch {
-          return 0;
+        } catch (err) {
+          console.error('Failed to compute body word count:', err);
         }
+        return 0;
       };
 
       const renderDOM = (currNode: typeof node) => {
@@ -250,6 +248,7 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
         dom.className = `beat-anchor-view-container ${isDuplicate ? 'is-duplicate' : ''}`;
 
         if (isDuplicate) {
+          lastWordCount = -1;
           dom.innerHTML = `
             <div class="beat-anchor-warning-box">
               <span class="warning-icon">⚠</span>
@@ -263,10 +262,11 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
           const rawType: string = currNode.attrs.beatType || 'action';
           const typeStr = rawType.charAt(0).toUpperCase() + rawType.slice(1);
           const length: number = currNode.attrs.beatLength || 400;
-          const wc = computeBodyWordCount();
-          // Actual count once prose exists; target only before generation.
-          const lengthStr = wc > 0 ? `${wc} words · target ~${length}` : `~${length} words`;
           const intent: string = currNode.attrs.beatIntent || '';
+
+          const wordCount = computeBodyWordCount(currNode);
+          lastWordCount = wordCount;
+          const lengthStr = wordCount > 0 ? `${wordCount} words · target ~${length}` : `~${length} words`;
 
           let intentPreview = '';
           if (intent) {
@@ -292,29 +292,34 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
       };
 
       // Initial render
-      let currentNode = node;
-      renderDOM(currentNode);
-
-      // Re-render on any edit so the body word count stays live as the writer trims.
-      const onUpdate = () => renderDOM(currentNode);
-      editor.on('update', onUpdate);
+      renderDOM(node);
 
       dom.addEventListener('click', (e) => {
         e.preventDefault();
-        if (!node.attrs.isDuplicate) {
+        if (!latestNode.attrs.isDuplicate) {
           this.options.onBeatClick?.(id);
         }
       });
 
+      // Re-render only when the body word count actually changes. Typing within a
+      // word doesn't cross a whitespace boundary, so most keystrokes skip the rewrite.
+      const handleUpdate = () => {
+        if (latestNode.attrs.isDuplicate) return;
+        if (computeBodyWordCount(latestNode) !== lastWordCount) {
+          renderDOM(latestNode);
+        }
+      };
+      editor.on('update', handleUpdate);
+
       return {
         dom,
         update: (newNode) => {
-          currentNode = newNode;
+          latestNode = newNode;
           renderDOM(newNode);
           return true;
         },
         destroy: () => {
-          editor.off('update', onUpdate);
+          editor.off('update', handleUpdate);
         },
       };
     };

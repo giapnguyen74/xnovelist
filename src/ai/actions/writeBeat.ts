@@ -52,11 +52,6 @@ export const writeBeat: Action<BeatInput> = {
       throw new Error('AI returned nothing — try again.');
     }
 
-    // Length is a soft target only: the prompt asks for ~target words and the
-    // model decides. No client-side truncation — the writer sees the actual word
-    // count on the beat header and trims to taste. (Runaway output is bounded by
-    // max_tokens, not by editing the prose.)
-
     return {
       type: 'proposals',
       list: [
