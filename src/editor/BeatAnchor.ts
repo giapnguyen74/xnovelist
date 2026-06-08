@@ -218,11 +218,32 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
   },
 
   addNodeView() {
-    return ({ node }) => {
+    return ({ node, getPos, editor }) => {
       const dom = document.createElement('div');
       const id = node.attrs.id;
 
       dom.style.userSelect = 'none';
+
+      // Live word count of the beat's bound body (the block adjacent to the
+      // header). The writer trims to taste; nothing truncates the prose for them.
+      const computeBodyWordCount = (): number => {
+        try {
+          const pos = typeof getPos === 'function' ? getPos() : null;
+          if (pos == null) return 0;
+          const doc = editor.state.doc;
+          const self = doc.nodeAt(pos);
+          if (!self) return 0;
+          const startPos = pos + self.nodeSize;
+          const nextNode = doc.nodeAt(startPos);
+          if (nextNode && nextNode.isBlock && nextNode.type.name !== 'beatAnchor') {
+            const text = (nextNode.textContent || '').trim();
+            return text ? text.split(/\s+/).length : 0;
+          }
+          return 0;
+        } catch {
+          return 0;
+        }
+      };
 
       const renderDOM = (currNode: typeof node) => {
         const isDuplicate = currNode.attrs.isDuplicate;
@@ -242,7 +263,9 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
           const rawType: string = currNode.attrs.beatType || 'action';
           const typeStr = rawType.charAt(0).toUpperCase() + rawType.slice(1);
           const length: number = currNode.attrs.beatLength || 400;
-          const lengthStr = `~${length} words`;
+          const wc = computeBodyWordCount();
+          // Actual count once prose exists; target only before generation.
+          const lengthStr = wc > 0 ? `${wc} words · target ~${length}` : `~${length} words`;
           const intent: string = currNode.attrs.beatIntent || '';
 
           let intentPreview = '';
@@ -269,7 +292,12 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
       };
 
       // Initial render
-      renderDOM(node);
+      let currentNode = node;
+      renderDOM(currentNode);
+
+      // Re-render on any edit so the body word count stays live as the writer trims.
+      const onUpdate = () => renderDOM(currentNode);
+      editor.on('update', onUpdate);
 
       dom.addEventListener('click', (e) => {
         e.preventDefault();
@@ -281,8 +309,12 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
       return {
         dom,
         update: (newNode) => {
+          currentNode = newNode;
           renderDOM(newNode);
           return true;
+        },
+        destroy: () => {
+          editor.off('update', onUpdate);
         },
       };
     };

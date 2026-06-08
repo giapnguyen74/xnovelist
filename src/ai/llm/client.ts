@@ -85,6 +85,21 @@ export function makeCallModel(
     const sanitizedSystem = stripBeatTokens(req.system || '');
     const sanitizedUser = stripBeatTokens(req.user || '');
 
+    const globalSetting = (typeof window !== 'undefined'
+      ? localStorage.getItem('xnovelist-ai-reasoning')
+      : 'auto') || 'auto';
+
+    let effectiveThinking: 'off' | 'low' | 'medium' | 'high';
+    if (globalSetting === 'off') {
+      effectiveThinking = 'off';
+    } else if (globalSetting === 'always') {
+      effectiveThinking = (req.thinking && req.thinking !== 'off') ? req.thinking : 'medium';
+    } else {
+      effectiveThinking = req.thinking ?? 'off';
+    }
+
+    const budgets = { low: 1024, medium: 4096, high: 8192 };
+
     let endpoint = '';
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     let body: Record<string, unknown>;
@@ -96,14 +111,23 @@ export function makeCallModel(
       // Required for direct browser calls to the Anthropic API.
       headers['anthropic-dangerous-direct-browser-access'] = 'true';
       headers['x-api-key'] = (ap.apiKey || '').trim();
+
+      const budget = effectiveThinking !== 'off' ? budgets[effectiveThinking] : 0;
+
       body = {
         model,
         system: sanitizedSystem,
         messages: [{ role: 'user', content: sanitizedUser }],
-        temperature: req.temperature ?? 0.5,
         // Anthropic requires max_tokens; send the action's value or the default.
         max_tokens: req.maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
       };
+
+      if (budget > 0) {
+        body.thinking = { type: 'enabled', budget_tokens: budget };
+        body.max_tokens = Math.max(Number(body.max_tokens), budget + 2048);
+      } else {
+        body.temperature = req.temperature ?? 0.5;
+      }
     } else {
       if (pid === 'local') {
         const lp = p as LocalAIProviderConfig;
@@ -125,14 +149,46 @@ export function makeCallModel(
         endpoint = 'https://api.openai.com/v1/chat/completions';
         headers['Authorization'] = `Bearer ${(op.apiKey || '').trim()}`;
       }
+
       body = {
         model,
         messages: [
           { role: 'system', content: sanitizedSystem },
           { role: 'user', content: sanitizedUser },
         ],
-        temperature: req.temperature ?? 0.5,
       };
+
+      const isOpenAI = pid === 'openai';
+      const isO1O3 = isOpenAI && (model.includes('o1') || model.includes('o3'));
+
+      if (isO1O3) {
+        if (effectiveThinking !== 'off') {
+          body.reasoning_effort = effectiveThinking;
+        }
+      } else {
+        body.temperature = req.temperature ?? 0.5;
+      }
+
+      if (pid === 'openrouter') {
+        if (effectiveThinking !== 'off') {
+          body.reasoning = {
+            effort: effectiveThinking,
+          };
+        } else {
+          body.reasoning = {
+            exclude: true,
+          };
+        }
+      }
+
+      if (pid === 'local') {
+        if (effectiveThinking === 'off') {
+          body.chat_template_kwargs = {
+            enable_thinking: false,
+          };
+        }
+      }
+
       // No artificial cap for OpenAI-style providers: omit max_tokens so the
       // model runs to its natural stop / context limit. Only sent if an action
       // explicitly requests a ceiling.

@@ -33,33 +33,16 @@ export const continueBeat: Action<BeatInput> = {
       warnings
     );
 
-    const res = await ctx.callModel({ system, user, temperature: 0.7 });
-    let text = res.text.trim();
+    const res = await ctx.callModel({ system, user, temperature: 0.7, thinking: 'off' });
+    const text = res.text.trim();
     if (!text) {
       throw new Error('AI returned nothing — try again.');
     }
 
-    // Length policy: soft-truncate at a paragraph/sentence boundary
-    const targetLength = parseInt(String(length), 10);
-    const words = text.split(/\s+/).filter(Boolean);
-    const maxWords = Math.round(targetLength * 1.20);
-
-    if (words.length > maxWords) {
-      const truncatedWords = words.slice(0, maxWords);
-      let truncatedText = truncatedWords.join(' ');
-      const lastPunctuation = Math.max(
-        truncatedText.lastIndexOf('.'),
-        truncatedText.lastIndexOf('?'),
-        truncatedText.lastIndexOf('!')
-      );
-      if (lastPunctuation > truncatedText.length * 0.8) {
-        truncatedText = truncatedText.slice(0, lastPunctuation + 1);
-      } else {
-        truncatedText += ' ...';
-      }
-      text = truncatedText;
-      warnings.push(`Prose truncated to match length policy (~${maxWords} words).`);
-    }
+    // Length is a soft target only: the prompt asks for ~target words and the
+    // model decides. No client-side truncation — the writer sees the actual word
+    // count on the beat header and trims to taste. (Runaway output is bounded by
+    // max_tokens, not by editing the prose.)
 
     return {
       type: 'proposals',

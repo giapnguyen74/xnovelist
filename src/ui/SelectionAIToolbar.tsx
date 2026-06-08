@@ -87,8 +87,10 @@ export default function SelectionAIToolbar({
 
   if (!pos) return null;
 
-  // Retrieve selection-scoped actions unlocked at active level
-  const selectionActions = actionsForLevel(aiLevel).filter((a) => a.scope === 'selection');
+  // Retrieve selection-scoped actions unlocked at active level, excluding beat-writing/continuation actions
+  const selectionActions = actionsForLevel(aiLevel).filter(
+    (a) => a.scope === 'selection' && a.id !== 'write_beat' && a.id !== 'continue'
+  );
 
   if (selectionActions.length === 0) return null;
 

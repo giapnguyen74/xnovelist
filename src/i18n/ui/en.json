@@ -241,5 +241,10 @@
   "beatDialogue": "Dialogue",
   "beatRealization": "Realization",
   "beatDecision": "Decision",
-  "beatTransition": "Transition"
+  "beatTransition": "Transition",
+  "aiReasoningLabel": "AI Reasoning Mode",
+  "aiReasoningAuto": "Auto (Per-action recommendation)",
+  "aiReasoningAlways": "Always On (Deep reasoning)",
+  "aiReasoningOff": "Off (Fast, direct generation)",
+  "aiReasoningDescription": "Controls whether the model is encouraged to think before writing. 'Auto' optimizes automatically: ON for analytical passes (contradiction checking, summary, character capture) and OFF for creative prose drafting to protect voice and minimize latency."
 }

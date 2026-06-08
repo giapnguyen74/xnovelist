@@ -241,5 +241,10 @@
   "beatDialogue": "Đối thoại (Dialogue)",
   "beatRealization": "Nhận thức (Realization)",
   "beatDecision": "Quyết định (Decision)",
-  "beatTransition": "Chuyển cảnh (Transition)"
+  "beatTransition": "Chuyển cảnh (Transition)",
+  "aiReasoningLabel": "Chế độ lập luận AI",
+  "aiReasoningAuto": "Tự động (Khuyên dùng theo hành động)",
+  "aiReasoningAlways": "Luôn bật (Lập luận sâu sắc)",
+  "aiReasoningOff": "Tắt (Tốc độ nhanh, viết trực tiếp)",
+  "aiReasoningDescription": "Kiểm soát việc mô hình AI có thực hiện bước suy nghĩ/lập luận trước khi phản hồi hay không. 'Tự động' giúp tối ưu: BẬT cho các phân tích logic (kiểm tra nhất quán, tóm tắt, trích xuất dữ liệu) và TẮT cho các tác vụ viết văn bản thảo để bảo vệ văn phong và giảm thời gian chờ."
 }

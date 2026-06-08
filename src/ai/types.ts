@@ -12,6 +12,8 @@ export interface ChatRequest {
   model?: string;
   /** Override the request timeout in ms (defaults are provider-aware). */
   timeoutMs?: number;
+  /** Reasoning control. Omitted = provider default. 'off' disables where the API allows. */
+  thinking?: 'off' | 'low' | 'medium' | 'high';
 }
 
 export interface ChatResponse {

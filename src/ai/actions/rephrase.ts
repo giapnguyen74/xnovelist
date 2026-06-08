@@ -35,7 +35,7 @@ export const rephrase: Action<CaptureInput> = {
     );
 
     // Call Model (medium temperature for creative phrasing)
-    const res = await ctx.callModel({ system, user, temperature: 0.6 });
+    const res = await ctx.callModel({ system, user, temperature: 0.6, thinking: 'off' });
     let text = res.text.trim();
 
     if (!text) {

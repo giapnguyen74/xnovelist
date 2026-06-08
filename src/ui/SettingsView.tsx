@@ -20,6 +20,8 @@ interface SettingsViewProps {
   defaultTab?: 'general' | 'ai';
   snapshotIntervalMinutes: number;
   onChangeSnapshotInterval: (min: number) => void;
+  reasoningMode: 'off' | 'auto' | 'always';
+  onChangeReasoningMode: (mode: 'off' | 'auto' | 'always') => void;
 }
 
 export default function SettingsView({
@@ -32,6 +34,8 @@ export default function SettingsView({
   defaultTab = 'general',
   snapshotIntervalMinutes,
   onChangeSnapshotInterval,
+  reasoningMode,
+  onChangeReasoningMode,
 }: SettingsViewProps) {
   const { t, lang, setLang } = useTranslation();
   const [activeTab, setActiveTab] = useState<'general' | 'ai'>(defaultTab);
@@ -441,6 +445,35 @@ export default function SettingsView({
               {/* AI Connection Cards - Only when Level >= 1 */}
               {workspaceAI.level >= 1 ? (
                 <div className="space-y-4 animate-fade-in">
+                  {/* AI Reasoning Mode control */}
+                  <div className="bg-[var(--sidebar-bg)]/20 border border-[var(--border)] p-5 space-y-4 rounded-lg">
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-75">{t('aiReasoningLabel')}</label>
+                      <div className="text-[10px] opacity-60 leading-normal">{t('aiReasoningDescription')}</div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      {(['off', 'auto', 'always'] as const).map((mode) => {
+                        const isSelected = reasoningMode === mode;
+                        const labelKey = mode === 'off' ? 'aiReasoningOff' : mode === 'always' ? 'aiReasoningAlways' : 'aiReasoningAuto';
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => onChangeReasoningMode(mode)}
+                            className={`px-3 py-2 text-xs font-semibold rounded border text-center transition-all cursor-pointer select-none ${
+                              isSelected
+                                ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-sm'
+                                : 'bg-[var(--sidebar-bg)] border-[var(--border)] text-[var(--foreground)] opacity-75 hover:opacity-100 hover:border-[var(--accent)]/50'
+                            }`}
+                          >
+                            {t(labelKey)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="space-y-1">
                     <label className="block text-[10px] font-extrabold uppercase tracking-widest opacity-75">AI Connection Services</label>
                     <div className="text-[10px] opacity-50">Credentials stay on this device. Connections are browser-direct.</div>

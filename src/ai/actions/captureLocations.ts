@@ -37,7 +37,7 @@ export const captureLocations: Action<CaptureInput> = {
 
     const { system, user } = buildPrompt('capture_locations', { prose, context }, ctx.lang);
 
-    let res = await ctx.callModel({ system, user, temperature: 0.6 });
+    let res = await ctx.callModel({ system, user, temperature: 0.6, thinking: 'low' });
     let parsed = extractJson<{ locations: unknown[] }>(res.text);
 
     if (!parsed || !Array.isArray(parsed.locations)) {
@@ -45,6 +45,7 @@ export const captureLocations: Action<CaptureInput> = {
         system,
         user: `${user}\n\nYour previous reply was not valid JSON in the required shape. Return ONLY the JSON object now.`,
         temperature: 0.2,
+        thinking: 'low',
       });
       res = repair;
       parsed = extractJson<{ locations: unknown[] }>(repair.text);

@@ -47,7 +47,7 @@ export const shorten: Action<CaptureInput> = {
     );
 
     // Call Model (medium temperature)
-    const res = await ctx.callModel({ system, user, temperature: 0.5 });
+    const res = await ctx.callModel({ system, user, temperature: 0.5, thinking: 'off' });
     let text = res.text.trim();
 
     if (!text) {

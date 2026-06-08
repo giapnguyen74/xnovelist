@@ -35,7 +35,7 @@ export const polishDialogue: Action<CaptureInput> = {
     );
 
     // Call Model (slightly higher temperature for style/voice accents)
-    const res = await ctx.callModel({ system, user, temperature: 0.75 });
+    const res = await ctx.callModel({ system, user, temperature: 0.75, thinking: 'off' });
     let text = res.text.trim();
 
     if (!text) {

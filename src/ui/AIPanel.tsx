@@ -194,11 +194,15 @@ export default function AIPanel({
   }, [modelsList, selectedModel]);
 
   // Filter actions based on scope and active workspace level
-  // Beat actions (write_beat and continue) are only visible when a beat caret is selected
+  // When a beat caret is selected, only show the beat actions (write_beat and continue).
+  // Otherwise, show actions matching the active scope (chapter/selection).
   const actions = useMemo(() => {
     return actionsForLevel(workspaceAI.level).filter((a) => {
+      if (activeBeatId) {
+        return a.id === 'write_beat' || a.id === 'continue';
+      }
       if (a.id === 'write_beat' || a.id === 'continue') {
-        return !!activeBeatId;
+        return false;
       }
       return a.scope === scope;
     });

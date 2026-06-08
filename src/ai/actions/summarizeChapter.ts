@@ -46,7 +46,7 @@ export const summarizeChapter: Action<SummarizeChapterInput> = {
       ctx.lang
     );
 
-    const res = await ctx.callModel({ system, user, temperature: 0.4 });
+    const res = await ctx.callModel({ system, user, temperature: 0.4, thinking: 'medium' });
     const text = res.text.trim();
     if (!text) {
       throw new Error('AI returned nothing — try again.');

@@ -35,7 +35,7 @@ export const captureCharacters: Action<CaptureInput> = {
 
     const { system, user } = buildPrompt('capture_characters', { prose, context }, ctx.lang);
 
-    let res = await ctx.callModel({ system, user, temperature: 0.6 });
+    let res = await ctx.callModel({ system, user, temperature: 0.6, thinking: 'low' });
     let parsed = extractJson<{ characters: unknown[] }>(res.text);
 
     if (!parsed || !Array.isArray(parsed.characters)) {
@@ -43,6 +43,7 @@ export const captureCharacters: Action<CaptureInput> = {
         system,
         user: `${user}\n\nYour previous reply was not valid JSON in the required shape. Return ONLY the JSON object now.`,
         temperature: 0.2,
+        thinking: 'low',
       });
       res = repair;
       parsed = extractJson<{ characters: unknown[] }>(repair.text);

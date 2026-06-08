@@ -35,7 +35,7 @@ export const fixGrammar: Action<CaptureInput> = {
     );
 
     // Call Model (low temperature for grammar fixing)
-    const res = await ctx.callModel({ system, user, temperature: 0.2 });
+    const res = await ctx.callModel({ system, user, temperature: 0.2, thinking: 'off' });
     let text = res.text.trim();
 
     if (!text) {

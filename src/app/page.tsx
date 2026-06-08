@@ -204,6 +204,10 @@ export default function WorkspacePage() {
       if (savedInterval !== null) {
         setSnapshotIntervalMinutes(parseInt(savedInterval, 10));
       }
+      const savedReasoning = localStorage.getItem('xnovelist-ai-reasoning') as 'off' | 'auto' | 'always';
+      if (savedReasoning) {
+        setReasoningMode(savedReasoning);
+      }
     }
   }, []);
 
@@ -224,6 +228,7 @@ export default function WorkspacePage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isRestoreDeletedOpen, setIsRestoreDeletedOpen] = useState(false);
   const [snapshotIntervalMinutes, setSnapshotIntervalMinutes] = useState<number>(30);
+  const [reasoningMode, setReasoningMode] = useState<'off' | 'auto' | 'always'>('auto');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [projectDeleteId, setProjectDeleteId] = useState<string | null>(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -1329,6 +1334,11 @@ export default function WorkspacePage() {
         onChangeSnapshotInterval={(min) => {
           setSnapshotIntervalMinutes(min);
           localStorage.setItem('xnovelist-snapshot-interval-min', String(min));
+        }}
+        reasoningMode={reasoningMode}
+        onChangeReasoningMode={(mode) => {
+          setReasoningMode(mode);
+          localStorage.setItem('xnovelist-ai-reasoning', mode);
         }}
       />
     );

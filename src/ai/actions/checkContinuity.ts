@@ -84,7 +84,7 @@ export const checkContinuity: Action<CheckContinuityInput> = {
     const context = contextParts.join('\n\n');
     const { system, user } = buildPrompt('check_continuity', { prose: md, context }, ctx.lang);
 
-    let res = await ctx.callModel({ system, user, temperature: 0.3 });
+    let res = await ctx.callModel({ system, user, temperature: 0.3, thinking: 'medium' });
     let parsed = extractJson<{ flags: unknown[] }>(res.text);
 
     if (!parsed || !Array.isArray(parsed.flags)) {
@@ -92,6 +92,7 @@ export const checkContinuity: Action<CheckContinuityInput> = {
         system,
         user: `${user}\n\nYour previous reply was not valid JSON in the required shape. Return ONLY the JSON object now.`,
         temperature: 0.2,
+        thinking: 'medium',
       });
       res = repair;
       parsed = extractJson<{ flags: unknown[] }>(repair.text);

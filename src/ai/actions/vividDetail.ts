@@ -47,7 +47,7 @@ export const vividDetail: Action<CaptureInput> = {
     );
 
     // Call Model (medium temperature)
-    const res = await ctx.callModel({ system, user, temperature: 0.65 });
+    const res = await ctx.callModel({ system, user, temperature: 0.65, thinking: 'off' });
     let text = res.text.trim();
 
     if (!text) {
