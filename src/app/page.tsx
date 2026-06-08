@@ -1889,6 +1889,14 @@ export default function WorkspacePage() {
                         setIsAIPanelOpen(true);
                       }
                     }}
+                    onBeatCreated={(beatId) => {
+                      // A freshly inserted beat opens the Agent Panel in Write Beat
+                      // mode so the writer sees the controls without having to learn
+                      // that clicking the beat header is what triggers it.
+                      setActiveBeatId(beatId);
+                      setAiPanelSelectedActionId('write_beat');
+                      setIsAIPanelOpen(true);
+                    }}
                     getBeatData={getBeatData}
                     activeBeatId={activeBeatId}
                   />

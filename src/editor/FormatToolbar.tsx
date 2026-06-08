@@ -33,6 +33,7 @@ interface FormatToolbarProps {
   aiLevel?: number;
   isAIPanelOpen?: boolean;
   onToggleAIPanel?: () => void;
+  onBeatCreated?: (id: string) => void;
   highlightBibleRefs?: boolean;
   onToggleHighlightBibleRefs?: () => void;
 }
@@ -46,6 +47,7 @@ export default function FormatToolbar({
   aiLevel = 0,
   isAIPanelOpen = false,
   onToggleAIPanel,
+  onBeatCreated,
   highlightBibleRefs = true,
   onToggleHighlightBibleRefs,
 }: FormatToolbarProps) {
@@ -249,6 +251,7 @@ export default function FormatToolbar({
                   { type: 'paragraph' },
                 ]).run();
               }
+              onBeatCreated?.(id);
             }}
             className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-[var(--border)] text-[var(--foreground)] transition-colors cursor-pointer text-xs font-semibold"
             title="Write Beat (Cmd/Ctrl + Shift + B)"

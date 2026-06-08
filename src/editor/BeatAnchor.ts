@@ -4,6 +4,8 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 export interface BeatAnchorOptions {
   onBeatClick?: (id: string) => void;
+  /** Fired right after a brand-new beat anchor is inserted into the doc. */
+  onBeatCreated?: (id: string) => void;
   getBeatData?: (id: string) => { type: string; length: number; intent: string; mode?: 'write_beat' | 'continue' } | null;
 }
 
@@ -43,6 +45,7 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
   addOptions() {
     return {
       onBeatClick: undefined,
+      onBeatCreated: undefined,
       getBeatData: undefined,
     };
   },
@@ -160,6 +163,7 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
             ])
             .run();
         }
+        this.options.onBeatCreated?.(id);
         return true;
       },
     };
@@ -267,6 +271,8 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
           const wordCount = computeBodyWordCount(currNode);
           lastWordCount = wordCount;
           const lengthStr = wordCount > 0 ? `${wordCount} words · target ~${length}` : `~${length} words`;
+          // Call-to-action label: invites the click that opens the Agent Panel.
+          const ctaLabel = wordCount > 0 ? 'Edit with AI' : (mode === 'continue' ? 'Continue with AI' : 'Write with AI');
 
           let intentPreview = '';
           if (intent) {
@@ -285,6 +291,7 @@ export const BeatAnchor = Node.create<BeatAnchorOptions>({
                 <span class="beat-badge">${typeStr}</span>
                 <span class="beat-length">${lengthStr}</span>
                 ${intentPreview ? `<span class="beat-header-intent-preview">"${intentPreview}"</span>` : ''}
+                <span class="beat-cta-btn">✦ ${ctaLabel}</span>
               </div>
             </div>
           `;

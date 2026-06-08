@@ -54,6 +54,7 @@ interface EditorCanvasProps {
   onOpenBibleItem?: (itemId: string) => void;
   onSelectionChange?: (sel: { from: number; to: number; text: string; textBefore: string; textAfter: string } | null) => void;
   onBeatClick?: (beatId: string | null) => void;
+  onBeatCreated?: (beatId: string) => void;
   getBeatData?: (beatId: string) => { type: string; length: number; intent: string; mode?: 'write_beat' | 'continue' } | null;
   activeBeatId?: string | null;
 }
@@ -100,6 +101,7 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
   onOpenBibleItem,
   onSelectionChange,
   onBeatClick,
+  onBeatCreated,
   getBeatData,
   activeBeatId,
 }, ref) {
@@ -108,6 +110,11 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
   useEffect(() => {
     onBeatClickRef.current = onBeatClick;
   }, [onBeatClick]);
+
+  const onBeatCreatedRef = useRef(onBeatCreated);
+  useEffect(() => {
+    onBeatCreatedRef.current = onBeatCreated;
+  }, [onBeatCreated]);
 
   const activeBeatIdRef = useRef(activeBeatId);
   useEffect(() => {
@@ -463,6 +470,7 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
           }
           onBeatClickRef.current?.(id);
         },
+        onBeatCreated: (id) => onBeatCreatedRef.current?.(id),
         getBeatData: (id) => getBeatDataRef.current?.(id) || null,
       }),
     ],
@@ -1076,6 +1084,7 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
           aiLevel={aiLevel}
           isAIPanelOpen={isAIPanelOpen}
           onToggleAIPanel={onToggleAIPanel}
+          onBeatCreated={(id) => onBeatCreatedRef.current?.(id)}
           highlightBibleRefs={highlightBibleRefs}
           onToggleHighlightBibleRefs={onToggleHighlightBibleRefs}
         />

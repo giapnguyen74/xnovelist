@@ -397,6 +397,29 @@ body {
   background-color: rgba(104, 117, 245, 0.05) !important;
 }
 
+/* ── Beat header call-to-action — looks like a button to invite the click ─── */
+.beat-cta-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+/* The whole header is clickable; the pill brightens with the header on hover. */
+.beat-anchor-active-box:hover .beat-cta-btn {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
 /* ── Guided tour (driver.js) — themed to the app accent / dark mode ────────── */
 .driver-popover.xn-tour {
   background: var(--background);
