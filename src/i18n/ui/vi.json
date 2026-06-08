@@ -226,5 +226,20 @@
   "restoreDeletedTitle": "Khôi phục các chương đã xóa",
   "noDeletedChapters": "Không tìm thấy chương đã xóa nào.",
   "restoreSuccess": "Khôi phục chương thành công!",
-  "deletedOn": "Đã xóa vào"
+  "deletedOn": "Đã xóa vào",
+  "feedback": "Phản hồi",
+  "giveFeedback": "Gửi phản hồi",
+  "write_beat": "Viết phân đoạn (Beat)",
+  "continue": "Viết tiếp",
+  "retry": "Thử lại",
+  "beatType": "Loại phân đoạn",
+  "beatLength": "Độ dài mục tiêu",
+  "beatIntent": "Tóm tắt những gì xảy ra trong phân đoạn này...",
+  "beatDuplicateWarning": "Trùng ID phân đoạn — Hãy xóa bớt",
+  "beatAction": "Hành động (Action)",
+  "beatReaction": "Phản ứng (Reaction)",
+  "beatDialogue": "Đối thoại (Dialogue)",
+  "beatRealization": "Nhận thức (Realization)",
+  "beatDecision": "Quyết định (Decision)",
+  "beatTransition": "Chuyển cảnh (Transition)"
 }

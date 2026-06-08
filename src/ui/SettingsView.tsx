@@ -169,7 +169,7 @@ export default function SettingsView({
       case 2:
         return 'AI can rewrite text you have selected, with your approval. It cannot edit anything else.';
       case 3:
-        return 'AI can actively generate and continue writing drafts at your cursor. (Coming in future versions)';
+        return 'AI can actively generate and continue writing drafts at your cursor.';
       case 4:
         return 'AI operates in a co-writer model with proactive feedback. (Coming in future versions)';
       case 5:
@@ -426,7 +426,7 @@ export default function SettingsView({
                     <span className={workspaceAI.level === 0 ? "text-[var(--accent)]" : ""}>L0 (Off)</span>
                     <span className={workspaceAI.level === 1 ? "text-[var(--accent)]" : ""}>L1 (Read)</span>
                     <span className={workspaceAI.level === 2 ? "text-[var(--accent)]" : ""}>L2 (Edit)</span>
-                    <span className={`${workspaceAI.level === 3 ? "text-[var(--accent)]" : ""} opacity-60`}>L3 (Soon)</span>
+                    <span className={workspaceAI.level === 3 ? "text-[var(--accent)]" : ""}>L3 (Write)</span>
                     <span className={`${workspaceAI.level === 4 ? "text-[var(--accent)]" : ""} opacity-60`}>L4 (Soon)</span>
                     <span className={`${workspaceAI.level === 5 ? "text-[var(--accent)]" : ""} opacity-60`}>L5 (Soon)</span>
                   </div>

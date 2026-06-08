@@ -1,6 +1,7 @@
 import { WorkspaceAIConfig, ProviderId, OpenAIProviderConfig, AnthropicProviderConfig, OpenRouterProviderConfig, LocalAIProviderConfig } from '../../storage/aiConfig';
 import { CallModel, ChatRequest, ChatResponse, DebugSink } from '../types';
 import { stripThinking } from './parseJson';
+import { stripBeatTokens } from '../beats';
 
 const FALLBACK_MODELS: Record<ProviderId, string> = {
   openai: 'gpt-4o-mini',
@@ -81,6 +82,9 @@ export function makeCallModel(
       p.defaultModel ||
       FALLBACK_MODELS[pid];
 
+    const sanitizedSystem = stripBeatTokens(req.system || '');
+    const sanitizedUser = stripBeatTokens(req.user || '');
+
     let endpoint = '';
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     let body: Record<string, unknown>;
@@ -94,8 +98,8 @@ export function makeCallModel(
       headers['x-api-key'] = (ap.apiKey || '').trim();
       body = {
         model,
-        system: req.system,
-        messages: [{ role: 'user', content: req.user }],
+        system: sanitizedSystem,
+        messages: [{ role: 'user', content: sanitizedUser }],
         temperature: req.temperature ?? 0.5,
         // Anthropic requires max_tokens; send the action's value or the default.
         max_tokens: req.maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
@@ -124,8 +128,8 @@ export function makeCallModel(
       body = {
         model,
         messages: [
-          { role: 'system', content: req.system },
-          { role: 'user', content: req.user },
+          { role: 'system', content: sanitizedSystem },
+          { role: 'user', content: sanitizedUser },
         ],
         temperature: req.temperature ?? 0.5,
       };

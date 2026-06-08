@@ -229,6 +229,33 @@ export default function FormatToolbar({
         >
           <Minus size={16} />
         </button>
+        {aiLevel >= 3 && (
+          <button
+            onClick={() => {
+              const id = `beat-${Date.now()}`;
+              const { state } = editor;
+              const { $from } = state.selection;
+              const inNonEmptyBlock =
+                $from.parent.type.name === 'paragraph' &&
+                $from.parent.textContent.length > 0;
+              if (inNonEmptyBlock) {
+                editor.chain().focus().splitBlock().insertContent([
+                  { type: 'beatAnchor', attrs: { id } },
+                  { type: 'paragraph' },
+                ]).run();
+              } else {
+                editor.chain().focus().insertContent([
+                  { type: 'beatAnchor', attrs: { id } },
+                  { type: 'paragraph' },
+                ]).run();
+              }
+            }}
+            className="p-1.5 rounded hover:bg-[var(--border)] text-[var(--foreground)] transition-colors cursor-pointer"
+            title="Insert Beat Caret (Cmd/Ctrl + Shift + B)"
+          >
+            <Sparkles size={16} className="text-amber-600 dark:text-amber-400" />
+          </button>
+        )}
       </div>
 
       {/* Typography Action Trigger */}

@@ -31,6 +31,14 @@ import FlashPage from '../ui/FlashPage';
 import { deriveSynopsis } from '../ai/continuity';
 import RestoreDeletedChaptersDialog from '../ui/RestoreDeletedChaptersDialog';
 
+export interface BeatData {
+  type: 'action' | 'reaction' | 'dialogue' | 'realization' | 'decision' | 'transition';
+  length: 200 | 400 | 600;
+  intent: string;
+  createdAt: string;
+  mode?: 'write_beat' | 'continue';
+}
+
 const GithubIcon = ({ size = 16, className = "" }: { size?: number; className?: string }) => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
@@ -131,6 +139,8 @@ export default function WorkspacePage() {
   const [continuityList, setContinuityList] = useState<Record<string, string>>({});
   const [chaptersWithHistory, setChaptersWithHistory] = useState<Set<string>>(new Set());
   const [aiTranscript, setAiTranscript] = useState<TranscriptTurn[]>([]);
+  const [beats, setBeats] = useState<Record<string, BeatData>>({});
+  const [activeBeatId, setActiveBeatId] = useState<string | null>(null);
 
   // Reset transcript when switching novels
   useEffect(() => {
@@ -543,6 +553,35 @@ export default function WorkspacePage() {
       loadedContinuity[id] = content;
     }
     setContinuityList(loadedContinuity);
+
+    // Load Beats sidecar
+    let loadedBeats: Record<string, BeatData> = {};
+    try {
+      const beatsStr = await activeStore.readFile(`${prefix}Beats.json`);
+      if (beatsStr) {
+        loadedBeats = JSON.parse(beatsStr);
+      }
+    } catch (e) {
+      // ignore
+    }
+    setBeats(loadedBeats);
+    setActiveBeatId(null);
+
+    // Sync beat params into ProseMirror node attrs after the editor has
+    // finished loading the new chapter markdown (short delay lets Tiptap settle).
+    if (Object.keys(loadedBeats).length > 0) {
+      setTimeout(() => {
+        if (!editorRef.current) return;
+        for (const [beatId, data] of Object.entries(loadedBeats)) {
+          editorRef.current.syncBeatAttrs(beatId, {
+            beatType: data.type,
+            beatMode: data.mode || 'write_beat',
+            beatLength: data.length,
+            beatIntent: data.intent,
+          });
+        }
+      }, 150);
+    }
   };
 
   // Create project handler
@@ -852,6 +891,83 @@ export default function WorkspacePage() {
     await storage.writeFile(`${prefix}Project.json`, JSON.stringify(updated));
   };
 
+  const handleInsertBeat = async (
+    chapterId: string,
+    beatId: string,
+    text: string,
+    beatParams?: {
+      mode?: 'write_beat' | 'continue';
+      type?: string;
+      length?: number;
+      intent?: string;
+    }
+  ) => {
+    if (!project || !storage) return;
+    const prefix = `projects/${project.id}/`;
+
+    if (editorRef.current) {
+      // Pass beat params as node attrs so the header re-renders immediately
+      // in the same transaction — no React state timing delay.
+      const beatAttrs = beatParams ? {
+        beatMode: beatParams.mode,
+        beatType: beatParams.type,
+        beatLength: beatParams.length,
+        beatIntent: beatParams.intent,
+      } : undefined;
+      const applied = editorRef.current.applyBeat(beatId, text, beatAttrs);
+      if (!applied) return;
+    }
+
+    setBeats((prev) => {
+      const existing: BeatData = prev[beatId] || {
+        type: 'action' as const,
+        length: 400 as const,
+        intent: '',
+        createdAt: new Date().toISOString(),
+      };
+      const merged: BeatData = {
+        ...existing,
+        ...(beatParams?.type !== undefined && { type: beatParams.type as BeatData['type'] }),
+        ...(beatParams?.length !== undefined && { length: beatParams.length as BeatData['length'] }),
+        ...(beatParams?.intent !== undefined && { intent: beatParams.intent }),
+        ...(beatParams?.mode !== undefined && { mode: beatParams.mode }),
+      };
+      const updated = { ...prev, [beatId]: merged };
+      storage.writeFile(`${prefix}Beats.json`, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const getBeatData = (beatId: string) => {
+    return beats[beatId] || null;
+  };
+
+  const handleUpdateBeatData = (beatId: string, data: Partial<{ type: string; length: number; intent: string; mode?: 'write_beat' | 'continue' }>) => {
+    if (!project || !storage) return;
+    const prefix = `projects/${project.id}/`;
+    setBeats((prev) => {
+      const existing = prev[beatId] || {
+        type: 'action',
+        length: 400,
+        intent: '',
+        createdAt: new Date().toISOString(),
+      };
+      const updated = {
+        ...prev,
+        [beatId]: {
+          ...existing,
+          ...data,
+          type: (data.type || existing.type) as any,
+          length: (data.length ? Number(data.length) : existing.length) as any,
+          intent: data.intent !== undefined ? data.intent : existing.intent,
+          mode: data.mode !== undefined ? data.mode : existing.mode,
+        },
+      };
+      storage.writeFile(`${prefix}Beats.json`, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Editor prose save handler — writes to the chapter that initiated the save
   // (not necessarily the currently-active one, in case the user switched
   // chapters before the debounce fired).
@@ -863,6 +979,51 @@ export default function WorkspacePage() {
     await storage.writeFile(filePath, markdown);
 
     setWordCounts((prev) => ({ ...prev, [chapterId]: count }));
+
+    // Garbage Collect Beats sidecar: scans all chapter markdowns and prunes Beats.json
+    try {
+      const beatIdsInUse = new Set<string>();
+
+      // 1. Extract from the newly saved markdown (since it might not be written to disk/indexed yet by listFiles)
+      const tokenRegex = /:::beat\{([^}]+)\}/g;
+      let match;
+      while ((match = tokenRegex.exec(markdown)) !== null) {
+        beatIdsInUse.add(match[1]);
+      }
+
+      // 2. Extract from other chapters
+      const paths = await storage.listFiles(`${prefix}Artifacts/chapter-`);
+      for (const p of paths) {
+        const cid = p.replace(`${prefix}Artifacts/chapter-`, '').replace('.md', '');
+        if (cid === chapterId) continue;
+        const md = await storage.readFile(p) || '';
+        let m;
+        tokenRegex.lastIndex = 0;
+        while ((m = tokenRegex.exec(md)) !== null) {
+          beatIdsInUse.add(m[1]);
+        }
+      }
+
+      // 3. Filter current beats state
+      setBeats((prev) => {
+        const cleaned: Record<string, BeatData> = {};
+        let changed = false;
+        for (const [id, data] of Object.entries(prev)) {
+          if (beatIdsInUse.has(id)) {
+            cleaned[id] = data;
+          } else {
+            changed = true;
+          }
+        }
+        if (changed) {
+          storage.writeFile(`${prefix}Beats.json`, JSON.stringify(cleaned));
+          return cleaned;
+        }
+        return prev;
+      });
+    } catch (gcErr) {
+      console.error('GC beats failed:', gcErr);
+    }
   };
 
   // Immediate (per-keystroke) word-count tracker. Keeps the project header
@@ -1113,6 +1274,9 @@ export default function WorkspacePage() {
           editorRef.current.replaceRange(from, to, text, expected);
         }
       },
+      onInsertBeat: async (chapterId, beatId, text) => {
+        await handleInsertBeat(chapterId, beatId, text);
+      },
     };
   };
 
@@ -1201,10 +1365,11 @@ export default function WorkspacePage() {
                 href="https://forms.gle/42RaT4ZCjLJreTsG7"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--border)]/30 hover:bg-[var(--accent)]/10 hover:text-[var(--accent)] transition-all text-[10px] font-mono cursor-pointer border border-[var(--border)]/50 hover:border-[var(--accent)]/20"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-all text-xs font-semibold cursor-pointer border border-[var(--accent)]/25 hover:border-transparent"
+                title={t('giveFeedback')}
               >
-                <MessageSquare size={11} className="opacity-80 text-[var(--accent)]" />
-                <span>Feedback</span>
+                <MessageSquare size={13} className="text-current" />
+                <span>{t('feedback')}</span>
               </a>
 
               {/* Theme toggler */}
@@ -1529,10 +1694,11 @@ export default function WorkspacePage() {
               href="https://forms.gle/42RaT4ZCjLJreTsG7"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:block p-1.5 rounded hover:bg-[var(--border)] text-[var(--foreground)] opacity-80 hover:opacity-100 transition-colors"
-              title="Give Feedback"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-all text-xs font-semibold cursor-pointer border border-[var(--accent)]/25 hover:border-transparent"
+              title={t('giveFeedback')}
             >
-              <MessageSquare size={16} />
+              <MessageSquare size={13} className="text-current" />
+              <span>{t('feedback')}</span>
             </a>
 
             {/* General settings moved to Dashboard for workspace-level global scope */}
@@ -1686,6 +1852,16 @@ export default function WorkspacePage() {
                       setSelectedItemId(itemId);
                     }}
                     onSelectionChange={setActiveSelection}
+                    onBeatClick={(beatId) => {
+                      setActiveBeatId(beatId);
+                      if (beatId) {
+                        const data = getBeatData(beatId);
+                        setAiPanelSelectedActionId(data?.mode || 'write_beat');
+                        setIsAIPanelOpen(true);
+                      }
+                    }}
+                    getBeatData={getBeatData}
+                    activeBeatId={activeBeatId}
                   />
                 ) : (
                   <div className="h-full w-full flex flex-col items-center justify-center text-xs opacity-50 bg-[var(--editor-bg)]">
@@ -1716,6 +1892,10 @@ export default function WorkspacePage() {
                 setTranscript={setAiTranscript}
                 selectedActionId={aiPanelSelectedActionId}
                 onSelectActionId={setAiPanelSelectedActionId}
+                activeBeatId={activeBeatId}
+                activeBeatData={activeBeatId ? beats[activeBeatId] : null}
+                getBeatSurroundingText={(beatId) => editorRef.current?.getBeatSurroundingText(beatId) || null}
+                onUpdateBeatData={handleUpdateBeatData}
               />
               <SnapshotHistoryPanel
                 isOpen={isHistoryOpen}
@@ -1903,6 +2083,7 @@ export default function WorkspacePage() {
               { label: t('distractionFree'), icon: Maximize2, onClick: () => { setIsDistractionFree(true); setIsMobileMoreOpen(false); } },
               { label: t('generalSettings'), icon: Settings, onClick: () => { setShowAISettingsPage(true); setSettingsTab('general'); setIsMobileMoreOpen(false); } },
               { label: t('aiSettings'), icon: Sparkles, onClick: () => { setShowAISettingsPage(true); setSettingsTab('ai'); setIsMobileMoreOpen(false); } },
+              { label: t('giveFeedback'), icon: MessageSquare, onClick: () => { window.open('https://forms.gle/42RaT4ZCjLJreTsG7', '_blank'); setIsMobileMoreOpen(false); } },
             ].map(({ label, icon: Icon, onClick }) => (
               <button
                 key={label}

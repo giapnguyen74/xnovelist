@@ -226,5 +226,20 @@
   "restoreDeletedTitle": "Restore Deleted Chapters",
   "noDeletedChapters": "No deleted chapters found.",
   "restoreSuccess": "Chapter restored successfully!",
-  "deletedOn": "Deleted on"
+  "deletedOn": "Deleted on",
+  "feedback": "Feedback",
+  "giveFeedback": "Give Feedback",
+  "write_beat": "Write Beat",
+  "continue": "Continue",
+  "retry": "Retry",
+  "beatType": "Beat Type",
+  "beatLength": "Target Length",
+  "beatIntent": "Outline what happens in this beat...",
+  "beatDuplicateWarning": "Duplicate Beat ID — Please Remove",
+  "beatAction": "Action",
+  "beatReaction": "Reaction",
+  "beatDialogue": "Dialogue",
+  "beatRealization": "Realization",
+  "beatDecision": "Decision",
+  "beatTransition": "Transition"
 }

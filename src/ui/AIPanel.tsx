@@ -32,6 +32,7 @@ export interface TranscriptTurn {
   elapsedMs?: number;
   proposalResult?: ProposalResult;
   cards?: TranscriptCard[];
+  input?: unknown; // Input parameters/context saved for retries
 }
 
 interface AIPanelProps {
@@ -57,6 +58,10 @@ interface AIPanelProps {
   setTranscript: React.Dispatch<React.SetStateAction<TranscriptTurn[]>>;
   selectedActionId?: string;
   onSelectActionId?: (id: string) => void;
+  activeBeatId?: string | null;
+  activeBeatData?: { type: string; length: number; intent: string; mode?: 'write_beat' | 'continue' } | null;
+  getBeatSurroundingText?: (beatId: string) => { beforeText: string; afterText: string } | null;
+  onUpdateBeatData?: (beatId: string, data: Partial<{ type: string; length: number; intent: string; mode?: 'write_beat' | 'continue' }>) => void;
 }
 
 const getArgString = (args: Record<string, unknown>, key: string): string => {
@@ -85,6 +90,10 @@ export default function AIPanel({
   setTranscript,
   selectedActionId: propSelectedActionId,
   onSelectActionId,
+  activeBeatId,
+  activeBeatData,
+  getBeatSurroundingText,
+  onUpdateBeatData,
 }: AIPanelProps) {
   const [scope, setScope] = useState<'chapter' | 'selection'>('chapter');
   const [localSelectedActionId, setLocalSelectedActionId] = useState<string>('');
@@ -99,6 +108,48 @@ export default function AIPanel({
   const [showDebug, setShowDebug] = useState(false);
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+
+  // Sync guidance and params ONLY when activeBeatId changes (selecting a different beat)
+  const prevBeatIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (activeBeatId !== prevBeatIdRef.current) {
+      prevBeatIdRef.current = activeBeatId;
+      if (activeBeatId) {
+        if (activeBeatData) {
+          setGuidance(activeBeatData.intent || '');
+          setParams({
+            type: activeBeatData.type || 'action',
+            length: String(activeBeatData.length || '400'),
+          });
+        } else {
+          setGuidance('');
+          setParams({
+            type: 'action',
+            length: '400',
+          });
+        }
+      } else {
+        // Beat deselected — reset to blank
+        setGuidance('');
+        setParams({});
+      }
+    }
+  }, [activeBeatId, activeBeatData]);
+
+  // Force scope to selection when a beat action is selected
+  useEffect(() => {
+    if (selectedActionId === 'write_beat' || selectedActionId === 'continue') {
+      setScope('selection');
+    }
+  }, [selectedActionId]);
+
+  const handleGuidanceChange = (val: string) => {
+    setGuidance(val);
+  };
+
+  const handleParamChange = (name: string, val: string | number) => {
+    setParams((prev) => ({ ...prev, [name]: val }));
+  };
 
   // Auto-scroll transcript to bottom
   useEffect(() => {
@@ -143,9 +194,15 @@ export default function AIPanel({
   }, [modelsList, selectedModel]);
 
   // Filter actions based on scope and active workspace level
+  // Beat actions (write_beat and continue) are only visible when a beat caret is selected
   const actions = useMemo(() => {
-    return actionsForLevel(workspaceAI.level).filter((a) => a.scope === scope);
-  }, [workspaceAI.level, scope]);
+    return actionsForLevel(workspaceAI.level).filter((a) => {
+      if (a.id === 'write_beat' || a.id === 'continue') {
+        return !!activeBeatId;
+      }
+      return a.scope === scope;
+    });
+  }, [workspaceAI.level, scope, activeBeatId]);
 
   // Set default selected action
   useEffect(() => {
@@ -201,10 +258,141 @@ export default function AIPanel({
 
   if (!isOpen) return null;
 
+  async function handleRetry(turn: TranscriptTurn) {
+    if (submitting) return;
+    setSubmitting(true);
+
+    // Update existing turn to loading status
+    updateTurn(turn.id, {
+      status: 'loading',
+      error: undefined,
+      proposalResult: undefined,
+      cards: undefined,
+    });
+
+    try {
+      const chosen = modelsList.find((m) => m.id === turn.model);
+      const modelOverride = chosen ? { providerId: chosen.providerId, model: chosen.id } : undefined;
+      const t0 = Date.now();
+      const res = await runTool(turn.actionId, turn.input, modelOverride);
+      const elapsedMs = Date.now() - t0;
+
+      if (!res.ok) {
+        updateTurn(turn.id, {
+          status: 'error',
+          error: res.error || 'AI returned an error.',
+          reasoning: res.reasoning,
+          elapsedMs,
+        });
+        return;
+      }
+
+      const proposalResult = res.output;
+      if (!proposalResult) {
+        updateTurn(turn.id, {
+          status: 'error',
+          error: 'Action returned no results.',
+        });
+        return;
+      }
+
+      const mockContext = {
+        prefix: `projects/${project?.id}/`,
+        project: project,
+      } as unknown as ToolContext;
+
+      let cards: TranscriptCard[] = [];
+      if (proposalResult.type === 'proposals') {
+        cards = proposalResult.list.map((prop) => {
+          const op = findWriteOp(prop.op);
+          const desc = op
+            ? op.describe(prop.args, mockContext)
+            : { title: prop.op, preview: JSON.stringify(prop.args), kind: 'edit' as const };
+          return {
+            op: prop.op,
+            args: (prop.args || {}) as Record<string, unknown>,
+            status: 'pending' as const,
+            title: desc.title,
+            preview: desc.preview,
+            kind: desc.kind,
+          };
+        });
+      } else if (proposalResult.type === 'text' && proposalResult.suggestedOp) {
+        const prop = proposalResult.suggestedOp;
+        const op = findWriteOp(prop.op);
+        const desc = op
+          ? op.describe(prop.args, mockContext)
+          : { title: prop.op, preview: JSON.stringify(prop.args), kind: 'edit' as const };
+        cards = [{
+          op: prop.op,
+          args: (prop.args || {}) as Record<string, unknown>,
+          status: 'pending' as const,
+          title: desc.title,
+          preview: desc.preview,
+          kind: desc.kind,
+        }];
+      }
+
+      updateTurn(turn.id, {
+        status: 'success',
+        proposalResult,
+        cards,
+        reasoning: res.reasoning,
+        elapsedMs,
+      });
+
+    } catch (err) {
+      const e = err as Error;
+      updateTurn(turn.id, {
+        status: 'error',
+        error: e?.message || String(err),
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function handleSend() {
     if (!selectedActionId || submitting) return;
     const action = findAction(selectedActionId);
     if (!action) return;
+
+    const chapterId = activeChapterId || '';
+    let input: any;
+    if (selectedActionId === 'write_beat' || selectedActionId === 'continue') {
+      if (!activeBeatId) {
+        alert('Please click on a beat anchor in the editor first to select it.');
+        return;
+      }
+      const surrounding = getBeatSurroundingText?.(activeBeatId);
+      if (!surrounding) {
+        alert('Could not find surrounding context for the active beat.');
+        return;
+      }
+      input = {
+        chapterId,
+        beatId: activeBeatId,
+        beforeText: surrounding.beforeText,
+        afterText: surrounding.afterText,
+        hint: guidance.trim() || undefined,
+        params,
+      };
+    } else {
+      const proseText = scope === 'selection' ? (selectionText || '') : (activeChapterMarkdown || '');
+      input = {
+        selection: scope === 'selection' && activeSelection ? {
+          text: activeSelection.text,
+          from: activeSelection.from,
+          to: activeSelection.to,
+          textBefore: activeSelection.textBefore,
+          textAfter: activeSelection.textAfter,
+        } : { text: proseText },
+        chapterId,
+        params,
+        hint: guidance.trim() || undefined,
+        guidance: guidance.trim() || undefined,
+      };
+    }
 
     setSubmitting(true);
     const turnId = `turn-${Date.now()}`;
@@ -217,28 +405,15 @@ export default function AIPanel({
       model: selectedModel,
       guidance: guidance.trim() || undefined,
       status: 'loading',
+      input,
     };
 
     setTranscript((prev) => [...prev, newTurn]);
-    setGuidance('');
+    if (selectedActionId !== 'write_beat' && selectedActionId !== 'continue') {
+      setGuidance('');
+    }
 
     try {
-      const chapterId = activeChapterId || '';
-      const proseText = scope === 'selection' ? (selectionText || '') : (activeChapterMarkdown || '');
-      const input = {
-        selection: scope === 'selection' && activeSelection ? {
-          text: activeSelection.text,
-          from: activeSelection.from,
-          to: activeSelection.to,
-          textBefore: activeSelection.textBefore,
-          textAfter: activeSelection.textAfter,
-        } : { text: proseText },
-        chapterId,
-        params,
-        hint: newTurn.guidance,
-        guidance: newTurn.guidance,
-      };
-
       const chosen = modelsList.find((m) => m.id === selectedModel);
       const modelOverride = chosen ? { providerId: chosen.providerId, model: chosen.id } : undefined;
       const t0 = Date.now();
@@ -497,9 +672,20 @@ export default function AIPanel({
                 )}
 
                 {t.status === 'error' && (
-                  <div className="p-3 border border-red-500/20 bg-red-500/5 rounded text-[10px] text-red-600 dark:text-red-400 flex items-start gap-1.5 leading-normal">
-                    <AlertTriangle size={13} className="shrink-0 mt-0.5" />
-                    <span>{t.error}</span>
+                  <div className="space-y-2">
+                    <div className="p-3 border border-red-500/20 bg-red-500/5 rounded text-[10px] text-red-600 dark:text-red-400 flex items-start gap-1.5 leading-normal">
+                      <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                      <span>{t.error}</span>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        disabled={submitting}
+                        onClick={() => handleRetry(t)}
+                        className="px-2 py-1 text-[9px] border border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/5 rounded cursor-pointer transition-colors text-amber-600 dark:text-amber-400"
+                      >
+                        Retry
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -507,8 +693,17 @@ export default function AIPanel({
                   <div className="space-y-2 pl-1 border-l border-[var(--border)]">
                     {/* Empty proposals notice */}
                     {t.proposalResult.type === 'proposals' && (t.cards?.length ?? 0) === 0 && (
-                      <div className="p-2 bg-black/5 dark:bg-white/5 text-[10px] opacity-60 rounded flex items-center gap-1.5">
-                        <CheckCircle2 size={12} /> No proposals from this passage.
+                      <div className="p-2 bg-black/5 dark:bg-white/5 text-[10px] opacity-60 rounded flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 size={12} /> No proposals from this passage.
+                        </div>
+                        <button
+                          disabled={submitting}
+                          onClick={() => handleRetry(t)}
+                          className="px-2 py-0.5 text-[9px] border border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/5 rounded cursor-pointer transition-colors text-amber-600 dark:text-amber-400 font-semibold"
+                        >
+                          Retry
+                        </button>
                       </div>
                     )}
 
@@ -690,13 +885,26 @@ export default function AIPanel({
                                 />
                               </div>
                             )}
+
+                            {/* insert_beat editor — editable AI suggestion */}
+                            {card.op === 'insert_beat' && (
+                              <div className="space-y-1.5">
+                                <label className="text-[8px] uppercase tracking-wider text-[var(--accent)] font-bold">AI suggestion</label>
+                                <textarea
+                                  value={getArgString(card.args, 'text')}
+                                  rows={6}
+                                  onChange={(e) => updateCardArgs(t.id, cardIdx, 'text', e.target.value)}
+                                  className="w-full p-2 bg-white dark:bg-black/20 border border-[var(--accent)]/40 rounded focus:outline-none focus:border-[var(--accent)] text-xs font-serif leading-relaxed"
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
 
                         {/* Readonly preview when applied/discarded */}
                         {card.status !== 'pending' && (
                           <div className="text-[10px] opacity-60 leading-snug truncate">
-                            {card.preview}
+                            {card.op === 'insert_beat' || card.op === 'replace_range' ? (card.args.text as string) : card.preview}
                           </div>
                         )}
 
@@ -727,11 +935,18 @@ export default function AIPanel({
                           {card.status === 'pending' && (
                             <div className="flex gap-1.5">
                               <button
+                                disabled={card.loading || submitting}
+                                onClick={() => handleRetry(t)}
+                                className="px-2 py-1 text-[9px] border border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/5 rounded cursor-pointer transition-colors text-amber-600 dark:text-amber-400"
+                              >
+                                Retry
+                              </button>
+                              <button
                                 disabled={card.loading}
                                 onClick={() => handleRejectCard(t.id, cardIdx)}
                                 className="px-2 py-1 text-[9px] border border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/5 rounded cursor-pointer transition-colors"
                               >
-                                {card.op === 'replace_range' ? 'Keep mine' : 'Reject'}
+                                {card.op === 'replace_range' ? 'Keep mine' : card.op === 'insert_beat' ? 'Discard' : 'Reject'}
                               </button>
                               <button
                                 disabled={card.loading}
@@ -739,7 +954,7 @@ export default function AIPanel({
                                 className="px-2 py-1 text-[9px] font-semibold bg-[var(--accent)] text-white hover:opacity-90 rounded cursor-pointer flex items-center gap-1 transition-opacity disabled:opacity-50"
                               >
                                 {card.loading && <Loader2 size={10} className="animate-spin" />}
-                                {card.op === 'replace_range' ? 'Replace' : 'Accept'}
+                                {card.op === 'replace_range' ? 'Replace' : card.op === 'insert_beat' ? 'Insert' : 'Accept'}
                               </button>
                             </div>
                           )}
@@ -825,7 +1040,7 @@ export default function AIPanel({
               <textarea
                 value={guidance}
                 disabled={submitting}
-                onChange={(e) => setGuidance(e.target.value)}
+                onChange={(e) => handleGuidanceChange(e.target.value)}
                 rows={2}
                 placeholder={selectedAction ? `${selectedAction.description} — add guidance (optional)…` : 'Add guidance (optional)…'}
                 className="w-full p-1.5 bg-transparent border border-[var(--border)] rounded focus:outline-none focus:border-[var(--accent)] text-xs resize-none"
@@ -840,7 +1055,7 @@ export default function AIPanel({
                       {p.type === 'choice' ? (
                         <select
                           value={String(params[p.name] ?? '')}
-                          onChange={(e) => setParams((prev) => ({ ...prev, [p.name]: e.target.value }))}
+                          onChange={(e) => handleParamChange(p.name, e.target.value)}
                           className="bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded px-1 py-0.5 text-[9px] cursor-pointer focus:outline-none focus:border-[var(--accent)]"
                         >
                           {(p.choices || []).map((c) => <option key={c} value={c}>{c}</option>)}
@@ -849,14 +1064,14 @@ export default function AIPanel({
                         <input
                           type="number"
                           value={Number(params[p.name] ?? 0)}
-                          onChange={(e) => setParams((prev) => ({ ...prev, [p.name]: Number(e.target.value) }))}
+                          onChange={(e) => handleParamChange(p.name, Number(e.target.value))}
                           className="w-14 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded px-1 py-0.5 text-[9px] focus:outline-none focus:border-[var(--accent)]"
                         />
                       ) : (
                         <input
                           type="text"
                           value={String(params[p.name] ?? '')}
-                          onChange={(e) => setParams((prev) => ({ ...prev, [p.name]: e.target.value }))}
+                          onChange={(e) => handleParamChange(p.name, e.target.value)}
                           className="w-24 bg-white dark:bg-[#1a1a19] border border-[var(--border)] rounded px-1 py-0.5 text-[9px] focus:outline-none focus:border-[var(--accent)]"
                         />
                       )}

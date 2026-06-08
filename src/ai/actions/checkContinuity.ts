@@ -2,6 +2,7 @@ import { Action, ToolContext, CheckContinuityInput, ProposalResult, ReportItem }
 import { buildPrompt } from '../prompts/buildPrompt';
 import { extractJson } from '../llm/parseJson';
 import { Character, Location } from '../../storage/schemas';
+import { stripBeatTokens } from '../beats';
 
 const SEVERITIES = ['high', 'medium', 'low'];
 
@@ -48,8 +49,8 @@ export const checkContinuity: Action<CheckContinuityInput> = {
   scope: 'chapter',
   allow: [], // Reports don't create side-effect write-ops
   async propose(input, ctx): Promise<ProposalResult> {
-    const chapterId = input.chapterId || ctx.project.activeChapterId;
-    const md = (await ctx.storage.readFile(`${ctx.prefix}Artifacts/chapter-${chapterId}.md`)) || '';
+    const rawMd = (await ctx.storage.readFile(`${ctx.prefix}Artifacts/chapter-${input.chapterId}.md`)) || '';
+    const md = stripBeatTokens(rawMd);
     if (!md.trim()) {
       throw new Error('This chapter is empty — nothing to check.');
     }
@@ -57,7 +58,7 @@ export const checkContinuity: Action<CheckContinuityInput> = {
     const bible = await readBibleContext(ctx);
 
     // Resolve preceding chapter continuity
-    const activeIdx = ctx.chapterOrder.indexOf(chapterId);
+    const activeIdx = ctx.chapterOrder.indexOf(input.chapterId);
     let precedingContinuity = '';
     if (activeIdx > 0) {
       const prevId = ctx.chapterOrder[activeIdx - 1];

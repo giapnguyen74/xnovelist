@@ -2,6 +2,7 @@ import en from './packs/en.json';
 import vi from './packs/vi.json';
 import { Character, Location, Style } from '../../storage/schemas';
 import { ToolContext } from '../types';
+import { stripBeatTokens } from '../beats';
 
 type Pack = typeof en;
 
@@ -32,11 +33,14 @@ export function buildPrompt(
   const tool = pack.tools[toolId];
   if (!tool) throw new Error(`No prompt block for tool ${String(toolId)} in pack ${lang}`);
 
+  const sanitizedProse = stripBeatTokens(parts.prose);
+  const sanitizedContext = parts.context ? stripBeatTokens(parts.context) : undefined;
+
   const segments: string[] = [tool.action];
-  if (parts.context && parts.context.trim()) {
-    segments.push(parts.context.trim());
+  if (sanitizedContext && sanitizedContext.trim()) {
+    segments.push(sanitizedContext.trim());
   }
-  segments.push('--- TEXT ---\n' + parts.prose.trim());
+  segments.push('--- TEXT ---\n' + sanitizedProse.trim());
   segments.push(tool.outputFormat);
 
   return { system: pack.system, user: segments.join('\n\n') };
@@ -132,7 +136,7 @@ function formatLocationBlock(loc: Location, compact = false): string {
 }
 
 export async function buildEditorPrompt(
-  toolId: 'fix_grammar' | 'rephrase' | 'shorten' | 'polish_dialogue' | 'vivid_detail',
+  toolId: 'fix_grammar' | 'rephrase' | 'shorten' | 'polish_dialogue' | 'vivid_detail' | 'write_beat' | 'continue',
   input: {
     selectionText: string;
     beforeText: string;
@@ -147,6 +151,10 @@ export async function buildEditorPrompt(
   const tool = pack.tools[toolId];
   if (!tool) throw new Error(`No prompt block for tool ${toolId} in pack ${ctx.lang}`);
 
+  const selectionText = stripBeatTokens(input.selectionText);
+  const beforeText = stripBeatTokens(input.beforeText);
+  const afterText = stripBeatTokens(input.afterText);
+
   // 1. System preamble (fixed)
   const system = pack.system;
 
@@ -158,6 +166,17 @@ export async function buildEditorPrompt(
   } else if (toolId === 'vivid_detail') {
     const focus = input.params?.focus ?? 'auto';
     actionInstruction = actionInstruction.replace('{focus}', String(focus));
+  } else if (toolId === 'write_beat') {
+    const targetLength = input.params?.length ?? 400;
+    const beatType = input.params?.type ?? 'action';
+    const beatIntent = input.guidance ?? '';
+    actionInstruction = actionInstruction
+      .replace('{length}', String(targetLength))
+      .replace('{type}', String(beatType))
+      .replace('{intent}', String(beatIntent));
+  } else if (toolId === 'continue') {
+    const targetLength = input.params?.length ?? 400;
+    actionInstruction = actionInstruction.replace('{length}', String(targetLength));
   }
 
   // 3. User guidance (optional, capped at 300 words)
@@ -175,7 +194,7 @@ export async function buildEditorPrompt(
   }
 
   // Scan matched names in surrounding prose + target
-  const textToSearch = `${input.beforeText}\n${input.selectionText}\n${input.afterText}`.toLowerCase();
+  const textToSearch = `${beforeText}\n${selectionText}\n${afterText}`.toLowerCase();
 
   // 5. Character block
   let charactersList: Character[] = [];
@@ -238,13 +257,19 @@ export async function buildEditorPrompt(
     shorten: { before: 300, after: 150 },
     vivid_detail: { before: 500, after: 200 },
     polish_dialogue: { before: 1000, after: 500 },
+    write_beat: { before: 1000, after: 500 },
+    continue: { before: 1000, after: 500 },
   };
   const windowLimits = windows[toolId] || { before: 300, after: 150 };
 
   const getSurroundingProseBlock = (bLimit: number, aLimit: number) => {
-    const b = getWordLimit(input.beforeText, bLimit, 'before');
-    const a = getWordLimit(input.afterText, aLimit, 'after');
-    const blend = "Here is what comes BEFORE, the SELECTION to edit, and what comes AFTER. Rewrite **only** the SELECTION so it slots seamlessly between BEFORE and AFTER — matching tense, POV, voice, and rhythm. Do not change BEFORE or AFTER. Return only the revised SELECTION.";
+    const b = getWordLimit(beforeText, bLimit, 'before');
+    const a = getWordLimit(afterText, aLimit, 'after');
+    
+    let blend = "Here is what comes BEFORE, the SELECTION to edit, and what comes AFTER. Rewrite **only** the SELECTION so it slots seamlessly between BEFORE and AFTER — matching tense, POV, voice, and rhythm. Do not change BEFORE or AFTER. Return only the revised SELECTION.";
+    if (toolId === 'write_beat' || toolId === 'continue') {
+      blend = "Here is the context of the story immediately BEFORE the insertion point, and immediately AFTER it. Write the new beat to slot seamlessly between BEFORE and AFTER — matching tense, POV, voice, and rhythm. Do not modify or repeat BEFORE or AFTER. Return ONLY the new beat's prose.";
+    }
     
     let block = `=== BLEND INSTRUCTION ===\n${blend}`;
     if (b) {
@@ -276,13 +301,15 @@ export async function buildEditorPrompt(
   // Helper to assemble full user prompt
   const assemble = (surrounding: string, cont: string, entities: { cBlock: string; lBlock: string }) => {
     const segments: string[] = [actionInstruction];
-    if (userGuidance) segments.push(userGuidance);
+    if (userGuidance && toolId !== 'write_beat') segments.push(userGuidance);
     if (styleBlock) segments.push(styleBlock);
     if (entities.cBlock) segments.push(entities.cBlock);
     if (entities.lBlock) segments.push(entities.lBlock);
     if (cont) segments.push(cont);
     segments.push(surrounding);
-    segments.push(`=== TARGET SELECTION TO EDIT ===\n${input.selectionText.trim()}`);
+    if (toolId !== 'write_beat' && toolId !== 'continue') {
+      segments.push(`=== TARGET SELECTION TO EDIT ===\n${selectionText.trim()}`);
+    }
     segments.push(tool.outputFormat);
     return segments.join('\n\n');
   };

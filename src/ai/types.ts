@@ -56,6 +56,17 @@ export interface ToolContext {
     text: string,
     expected?: string
   ) => Promise<void>;
+  onInsertBeat?: (
+    chapterId: string,
+    beatId: string,
+    text: string,
+    beatParams?: {
+      mode?: 'write_beat' | 'continue';
+      type?: string;
+      length?: number;
+      intent?: string;
+    }
+  ) => Promise<void>;
 
   /** Optional debug sink; `callModel` appends each call's reasoning/raw output. */
   debug?: DebugSink;
@@ -163,6 +174,15 @@ export interface SummarizeChapterInput {
 
 export interface CheckContinuityInput {
   chapterId: string;
+  params?: Record<string, string | number>;
+}
+
+export interface BeatInput {
+  chapterId: string;
+  beatId: string;
+  beforeText: string;
+  afterText: string;
+  hint?: string;
   params?: Record<string, string | number>;
 }
 

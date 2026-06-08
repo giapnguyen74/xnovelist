@@ -9,9 +9,17 @@ import { SearchAndReplace } from './SearchAndReplace';
 import FindBar from './FindBar';
 import { TextSelection } from '@tiptap/pm/state';
 import { BibleLinkage } from './bibleLinkage';
+import { BeatAnchor } from './BeatAnchor';
 
 export interface EditorCanvasRef {
   replaceRange: (from: number, to: number, text: string, expected?: string) => boolean;
+  applyBeat: (
+    beatId: string,
+    text: string,
+    beatAttrs?: { beatType?: string; beatMode?: string; beatLength?: number; beatIntent?: string }
+  ) => boolean;
+  getBeatSurroundingText: (beatId: string) => { beforeText: string; afterText: string } | null;
+  syncBeatAttrs: (beatId: string, attrs: { beatType?: string; beatMode?: string; beatLength?: number; beatIntent?: string }) => void;
 }
 
 interface EditorCanvasProps {
@@ -45,6 +53,9 @@ interface EditorCanvasProps {
   onOpenBibleLocation?: (locId: string) => void;
   onOpenBibleItem?: (itemId: string) => void;
   onSelectionChange?: (sel: { from: number; to: number; text: string; textBefore: string; textAfter: string } | null) => void;
+  onBeatClick?: (beatId: string | null) => void;
+  getBeatData?: (beatId: string) => { type: string; length: number; intent: string; mode?: 'write_beat' | 'continue' } | null;
+  activeBeatId?: string | null;
 }
 
 // Manuscript-page math: 250 words/page (double-spaced standard), 200 wpm reading pace.
@@ -88,8 +99,25 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
   onOpenBibleLocation,
   onOpenBibleItem,
   onSelectionChange,
+  onBeatClick,
+  getBeatData,
+  activeBeatId,
 }, ref) {
   const { t } = useTranslation();
+  const onBeatClickRef = useRef(onBeatClick);
+  useEffect(() => {
+    onBeatClickRef.current = onBeatClick;
+  }, [onBeatClick]);
+
+  const activeBeatIdRef = useRef(activeBeatId);
+  useEffect(() => {
+    activeBeatIdRef.current = activeBeatId;
+  }, [activeBeatId]);
+
+  const getBeatDataRef = useRef(getBeatData);
+  useEffect(() => {
+    getBeatDataRef.current = getBeatData;
+  }, [getBeatData]);
   const [title, setTitle] = useState(initialTitle);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'unsaved'>('idle');
   const [wordCount, setWordCount] = useState(0);
@@ -410,6 +438,33 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
         items: items || [],
         enabled: !!highlightBibleRefs,
       }),
+      BeatAnchor.configure({
+        onBeatClick: (id) => {
+          if (editor && !editor.isDestroyed) {
+            let beatPos = -1;
+            let beatNode: any = null;
+            editor.state.doc.descendants((node, pos) => {
+              if (node.type.name === 'beatAnchor' && node.attrs.id === id && !node.attrs.isDuplicate) {
+                beatPos = pos;
+                beatNode = node;
+                return false;
+              }
+            });
+
+            if (beatPos !== -1 && beatNode) {
+              const startPos = beatPos + beatNode.nodeSize;
+              const nextNode = editor.state.doc.nodeAt(startPos);
+              if (nextNode && nextNode.isBlock && nextNode.type.name !== 'beatAnchor') {
+                const from = nextNode.nodeSize > 2 ? startPos + 1 : startPos;
+                const to = nextNode.nodeSize > 2 ? startPos + nextNode.nodeSize - 1 : startPos;
+                editor.commands.setTextSelection({ from, to });
+              }
+            }
+          }
+          onBeatClickRef.current?.(id);
+        },
+        getBeatData: (id) => getBeatDataRef.current?.(id) || null,
+      }),
     ],
     content: initialMarkdown,
     editorProps: {
@@ -457,6 +512,35 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
     onSelectionUpdate: ({ editor }) => {
       const { state } = editor;
       const { from, to } = state.selection;
+
+      // Check if selection is outside active beat range
+      const actBeatId = activeBeatIdRef.current;
+      if (actBeatId) {
+        let beatPos = -1;
+        let beatNode: any = null;
+        state.doc.descendants((node, pos) => {
+          if (node.type.name === 'beatAnchor' && node.attrs.id === actBeatId && !node.attrs.isDuplicate) {
+            beatPos = pos;
+            beatNode = node;
+            return false;
+          }
+        });
+
+        if (beatPos !== -1 && beatNode) {
+          const startPos = beatPos + beatNode.nodeSize;
+          const nextNode = state.doc.nodeAt(startPos);
+          const rangeEnd = (nextNode && nextNode.isBlock && nextNode.type.name !== 'beatAnchor')
+            ? startPos + nextNode.nodeSize
+            : startPos;
+
+          if (from < beatPos || to > rangeEnd) {
+            onBeatClickRef.current?.(null);
+          }
+        } else {
+          onBeatClickRef.current?.(null);
+        }
+      }
+
       if (from === to) {
         onSelectionChangeRef.current?.(null);
       } else {
@@ -515,6 +599,7 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
     },
   }, []);
 
+
   useImperativeHandle(ref, () => ({
     replaceRange(from: number, to: number, text: string, expected?: string) {
       if (!editor || editor.isDestroyed) return false;
@@ -561,6 +646,109 @@ const EditorCanvas = React.forwardRef<EditorCanvasRef, EditorCanvasProps>(functi
       // No guard — fall back to positional insert.
       editor.commands.insertContentAt({ from, to }, text);
       return true;
+    },
+
+    applyBeat(beatId: string, text: string, beatAttrs?: { beatType?: string; beatMode?: string; beatLength?: number; beatIntent?: string }) {
+      if (!editor || editor.isDestroyed) return false;
+      const { state } = editor;
+
+      let beatPos = -1;
+      let beatNode: any = null;
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === 'beatAnchor' && node.attrs.id === beatId && !node.attrs.isDuplicate) {
+          beatPos = pos;
+          beatNode = node;
+          return false;
+        }
+      });
+
+      if (beatPos === -1 || !beatNode) {
+        alert("Warning: The target beat anchor was not found. It may have been deleted.");
+        return false;
+      }
+
+      const startPos = beatPos + beatNode.nodeSize;
+      const nextNode = state.doc.nodeAt(startPos);
+
+      // Build a single transaction: update beat attrs + insert content
+      const tr = state.tr;
+      if (beatAttrs) {
+        const mergedAttrs = { ...beatNode.attrs, ...beatAttrs };
+        tr.setNodeMarkup(beatPos, undefined, mergedAttrs);
+      }
+
+      // We need to apply the attrs first so startPos offsets are preserved
+      // Then apply content insertion
+      editor.view.dispatch(tr);
+
+      // Now insert the content (in a fresh state after attrs update)
+      const newState = editor.view.state;
+      let newBeatPos = -1;
+      newState.doc.descendants((node, pos) => {
+        if (node.type.name === 'beatAnchor' && node.attrs.id === beatId) {
+          newBeatPos = pos;
+          return false;
+        }
+      });
+      const insertStart = newBeatPos !== -1 ? newBeatPos + beatNode.nodeSize : startPos;
+      const afterNode = newState.doc.nodeAt(insertStart);
+
+      if (afterNode && afterNode.isBlock && afterNode.type.name !== 'beatAnchor') {
+        editor.commands.insertContentAt({ from: insertStart, to: insertStart + afterNode.nodeSize }, text);
+      } else {
+        editor.commands.insertContentAt({ from: insertStart, to: insertStart }, text);
+      }
+      return true;
+    },
+
+    syncBeatAttrs(beatId: string, attrs: { beatType?: string; beatMode?: string; beatLength?: number; beatIntent?: string }) {
+      if (!editor || editor.isDestroyed) return;
+      const { state } = editor;
+      let beatPos = -1;
+      let beatNode: any = null;
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === 'beatAnchor' && node.attrs.id === beatId) {
+          beatPos = pos;
+          beatNode = node;
+          return false;
+        }
+      });
+      if (beatPos === -1 || !beatNode) return;
+      const mergedAttrs = { ...beatNode.attrs, ...attrs };
+      const tr = state.tr.setNodeMarkup(beatPos, undefined, mergedAttrs);
+      editor.view.dispatch(tr);
+    },
+
+    getBeatSurroundingText(beatId: string) {
+      if (!editor || editor.isDestroyed) return null;
+      const { state } = editor;
+
+      let beatPos = -1;
+      let beatNode: any = null;
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === 'beatAnchor' && node.attrs.id === beatId && !node.attrs.isDuplicate) {
+          beatPos = pos;
+          beatNode = node;
+          return false;
+        }
+      });
+
+      if (beatPos === -1 || !beatNode) return null;
+
+      const beforeText = state.doc.textBetween(0, beatPos, '\n');
+      const startPos = beatPos + beatNode.nodeSize;
+      const docSize = state.doc.content.size;
+
+      const nextNode = state.doc.nodeAt(startPos);
+      let afterText = '';
+      if (nextNode && nextNode.isBlock && nextNode.type.name !== 'beatAnchor') {
+        const nextNodeEnd = startPos + nextNode.nodeSize;
+        afterText = state.doc.textBetween(nextNodeEnd, docSize, '\n');
+      } else {
+        afterText = state.doc.textBetween(startPos, docSize, '\n');
+      }
+
+      return { beforeText, afterText };
     }
   }), [editor]);
 

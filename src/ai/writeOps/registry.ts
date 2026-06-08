@@ -7,6 +7,7 @@ import { styleSet } from './styleSet';
 import { appendContinuity } from './appendContinuity';
 import { continuitySet } from './continuitySet';
 import { replaceRangeOp } from './replaceRange';
+import { insertBeatOp } from './insertBeat';
 
 export const ALL_WRITE_OPS: readonly WriteOp[] = Object.freeze([
   characterAdd,
@@ -17,6 +18,7 @@ export const ALL_WRITE_OPS: readonly WriteOp[] = Object.freeze([
   appendContinuity,
   continuitySet,
   replaceRangeOp,
+  insertBeatOp,
 ]);
 
 export function findWriteOp(id: string): WriteOp | undefined {

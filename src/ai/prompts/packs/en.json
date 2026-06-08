@@ -40,6 +40,14 @@
     "vivid_detail": {
       "action": "Enhance the SELECTION with vivid details, focusing on {focus}. Sharpen concreteness in place: replace weak verbs and nouns with precise, evocative ones. Do not add new sentences, invent events, characters, or places. Keep size change under 1.2x.",
       "outputFormat": "Return ONLY the revised SELECTION. No explanations, no notes."
+    },
+    "write_beat": {
+      "action": "Write ~{length} words of a {type} beat in which {intent}. Continue seamlessly from CONTEXT BEFORE and lead into CONTEXT AFTER. Maintain the style, voice, POV, and tense established in surrounding prose.",
+      "outputFormat": "Return ONLY the generated prose. No explanations, no notes."
+    },
+    "continue": {
+      "action": "Write next beat of ~{length} words. Continue seamlessly from CONTEXT BEFORE and lead into CONTEXT AFTER. Maintain the style, voice, POV, and tense established in surrounding prose.",
+      "outputFormat": "Return ONLY the generated prose. No explanations, no notes."
     }
   }
 }

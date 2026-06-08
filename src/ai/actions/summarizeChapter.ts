@@ -1,5 +1,6 @@
 import { Action, SummarizeChapterInput, ProposalResult } from '../types';
 import { buildPrompt } from '../prompts/buildPrompt';
+import { stripBeatTokens } from '../beats';
 
 export const summarizeChapter: Action<SummarizeChapterInput> = {
   id: 'summarize_chapter',
@@ -10,7 +11,8 @@ export const summarizeChapter: Action<SummarizeChapterInput> = {
   allow: ['continuity_set'],
   async propose(input, ctx): Promise<ProposalResult> {
     const chapterId = input.chapterId || ctx.project.activeChapterId;
-    const md = (await ctx.storage.readFile(`${ctx.prefix}Artifacts/chapter-${chapterId}.md`)) || '';
+    const rawMd = (await ctx.storage.readFile(`${ctx.prefix}Artifacts/chapter-${chapterId}.md`)) || '';
+    const md = stripBeatTokens(rawMd);
     if (!md.trim()) {
       throw new Error('This chapter is empty — nothing to summarize.');
     }

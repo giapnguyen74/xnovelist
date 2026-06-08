@@ -40,6 +40,14 @@
     "vivid_detail": {
       "action": "Tăng cường chi tiết sống động cho phần LỰA CHỌN, tập trung vào {focus}. Trau chuốt tính cụ thể tại chỗ: thay thế các động từ và danh từ yếu bằng những từ gợi cảm và chính xác. Không thêm câu mới, không bịa ra sự kiện, nhân vật hay địa điểm mới. Giữ thay đổi độ dài dưới 1,2 lần.",
       "outputFormat": "CHỈ trả về phần LỰA CHỌN đã chỉnh sửa. Không giải thích, không ghi chú."
+    },
+    "write_beat": {
+      "action": "Viết một phân đoạn khoảng ~{length} từ thuộc loại {type} trong đó xảy ra {intent}. Viết tiếp nối liền mạch từ BỐI CẢNH TRƯỚC và dẫn dắt vào BỐI CẢNH SAU. Đảm bảo duy trì đúng phong cách, giọng văn, ngôi kể và thì được thiết lập trong văn bản xung quanh.",
+      "outputFormat": "CHỈ trả về văn bản của phân đoạn được viết. Không giải thích, không ghi chú."
+    },
+    "continue": {
+      "action": "Viết phân đoạn tiếp theo khoảng ~{length} từ. Viết tiếp nối liền mạch từ BỐI CẢNH TRƯỚC và dẫn dắt vào BỐI CẢNH SAU. Đảm bảo duy trì đúng phong cách, giọng văn, ngôi kể và thì được thiết lập trong văn bản xung quanh.",
+      "outputFormat": "CHỈ trả về văn bản của phân đoạn được viết. Không giải thích, không ghi chú."
     }
   }
 }
